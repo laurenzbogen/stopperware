@@ -1,5 +1,5 @@
 <template>
-    <div :class="`w-[700px] flex items-center m-2  shadow-sm gap-12 ${seed.hidden ? 'opacity-0' : null}`">
+    <div :class="`w-[700px] flex items-center m-2  shadow-sm gap-12 ${hidden ? 'opacity-0' : null}`">
         <h1 class="font-bold">Pipeline</h1>
         <p>{{ selection.size }} selected</p>
         <button @click="selection = new Set()" class="btn">Clear Selection</button>
@@ -8,7 +8,7 @@
     <div v-if="dragAction.dragging && dragAction.toPipelineId === id && (dragAction.dragStage.fromPipelineId !== id || dragAction.dragStage.fromIndex !== 0)"
         class="border-t border-2 w-[700px]" :ref="el => setDivider(el, 0)"></div>
 
-    <template v-for="stage, i in stages">
+    <template v-for="stage, i in stageIds.map(s => data.stages.get(s))">
         <div @pointerdown="setDetailStage(stage.id)">
             <div class="bg-base-200/70 px-2 pb-2 rounded-lg my-4 drop-shadow relative w-[700px]"
                 @pointerdown="(e) => handleDragDown(e, i)" ref="stageWrappers" :style="dragAction.dragStage.id === stage.id && dragAction.dragging ? {
@@ -39,33 +39,37 @@
         </div>
     </template>
 
-    <div :class="`${seed.hidden ? 'opacity-0' : null}`">
-        <button class="btn" @click="chooseStage({ pipelineID: id, index: stages.length })">Add</button>
-        <button class="btn" @click="chooseStage({ pipelineID: id, index: stages.length })">Add from Selected</button>
+    <div :class="`${hidden ? 'opacity-0' : null}`">
+        <button class="btn" @click="chooseStage({ pipelineID: id, index: stageIds.length })">Add</button>
+        <button class="btn" @click="chooseStage({ pipelineID: id, index: stageIds.length })">Add from Selected</button>
     </div>
 </template>
 
 <script setup>
-import { useLocalData } from '@/components/composables/useData';
+//:seed="{ index: i, pipeline: pipeline, hidden: i === 0 || i === data.stagePipelines.size - 1 }"
 import { ref, watch, computed, provide, inject, useTemplateRef, toValue, onBeforeUpdate } from 'vue';
-
 
 import { v4 as uuidv4 } from "uuid";
 import { stageTypeMap } from '@/stageTypeMap';
 
+const { data, chooseStage, setDetailStage, stageDrag } = inject("injectGlobalState")
+const { id } = defineProps(['id'])
 
-const { chooseStage, setDetailStage, stageDrag } = inject("injectGlobalState")
+const pipeline = computed({
+    get: () => data.value.stagePipelines.get(id),
+    set: (val) => data.value.stagePipelines.set(id, val)
+})
+const hidden = computed(() => {
+    return pipeline.value.position === 0 || pipeline.value.position === data.value.stagePipelines.size - 1
+})
 
-const props = defineProps(["seed"])
-const id = props.seed.pipeline.id
-
-const stages = computed({
-    get: () => props.seed.pipeline.stages,
-    set: (val) => { props.seed.pipeline.stages = val }
+const stageIds = computed({
+    get: () => pipeline.value.stages,
+    set: (val) => { pipeline.value.stages = val }
 })
 const selection = computed({
-    get: () => props.seed.pipeline.selection,
-    set: (val) => { props.seed.pipeline.selection = val }
+    get: () => pipeline.value.selection,
+    set: (val) => { pipeline.value.selection = val }
 })
 
 
@@ -87,7 +91,7 @@ const { dragAction, handleStageDragStart, handleStageDrag, handleStageDragEnd, }
 function handleDragDown(e, i) {
     const isFrame = !stageComponents.value[i].contains(e.target)
     if (isFrame) {
-        handleStageDragStart(stages.value[i].id, e)
+        handleStageDragStart(stageIds.value[i], e)
         e.preventDefault()
         document.addEventListener("pointermove", handleDrag)
         document.addEventListener("pointerup", handleDragUp)
@@ -128,16 +132,18 @@ function handleDragUp(e) {
 
 
 function changeStageFilter(id, filter) {
-    const index = stages.value.findIndex(e => e.id == id)
+    const index = stageIds.value.findIndex(e => e == id)
     for (let e of filter) {
-        stages.value[index].filter.push(e)
+        stageIds.value[index].filter.push(e)
     }
 }
 
 
 const cumulativeFilter = computed(() => {
+    //TODO
+    return []
     let globalSet = new Set()
-    return stages.value.map(p => {
+    return stageIds.value.map(p => {
         for (let { word, action } of p.filter) {
             if (action === "ADD") {
                 globalSet.add(word)
@@ -150,12 +156,12 @@ const cumulativeFilter = computed(() => {
 })
 
 function getCumulativeFilter(id) {
-    const index = stages.value.findIndex(e => e.id == id)
+    const index = stageIds.value.findIndex(e => e == id)
     return cumulativeFilter.value[index] ?? []
 }
 
 provide('injectPipeline', {
-    pipeline: stages,
+    pipeline: stageIds,
     selection,
     changeStageFilter,
     getCumulativeFilter,
@@ -191,7 +197,7 @@ function findSimilarWords(word, stageIndex) {
         selected: word,
         filter: [],
     }
-    stages.value.splice(stageIndex + 1, 0, stage)
+    stageIds.value.splice(stageIndex + 1, 0, stage)
 }
 
 </script>

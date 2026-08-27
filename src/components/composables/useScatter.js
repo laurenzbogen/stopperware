@@ -1,8 +1,8 @@
 import * as d3 from 'd3'
-import { createLasso } from './useLasso.js';
-import { createSlots, inject, onMounted, ref, watch } from 'vue'
+import { useLasso } from './useLasso.js';
+import { computed, createSlots, inject, onMounted, ref, watch } from 'vue'
 import { useSelectionStyle } from '../util/util.js';
-import SuperJSON from 'superjson';
+import { EDITMODES } from '@/helpers.js';
 
 // reactiveData: {
 //  minX,
@@ -11,11 +11,14 @@ import SuperJSON from 'superjson';
 //  maxY,
 //  data: [{x, y, word}]
 // }
-export default function useScatter(stageData, stage) {
+export default function useScatter(stageData, initTransformState) {
     const { container,
         reactiveData,
-        currentFilter, stageSelection, stateNoUndo } = stageData
-    const { stopwords, toggleIsStopword, isStopword, editMode } = inject('injectGlobalState')
+        currentFilter, stageSelection } = stageData
+    const { data } = inject('injectGlobalState')
+
+    const editMode = computed(() => data.value.editorData.mainToolSelected)
+
     let initialTransformApplied = false
     const { selection: pipelineSelection } = inject('injectPipeline')
 
@@ -25,24 +28,15 @@ export default function useScatter(stageData, stage) {
     // rather than rebuilt (and rebound) on every reactive change.
     let zoomBehavior = null
 
-    onMounted(() => {
-        if (stage && stage.stateNoUndo) {
-            // ???
-            const parsed = stage.stateNoUndo.json
-            currentTransform.value = parsed.transform
-        }
-    })
-
     const { getSelectionStyle, triggers } = useSelectionStyle()
 
     function drawStopWords() {
         if (!container.value) {
             return
         }
-
         const groups = d3.select(container.value)
             .selectAll('g#scatter_point')
-            .attr('class', (d) => getSelectionStyle(d.word))
+            .classed(getSelectionStyle(d.word), true)
     }
 
     watch(triggers, drawStopWords, { deep: true })
@@ -68,7 +62,7 @@ export default function useScatter(stageData, stage) {
         if (!zoomBehavior) {
             zoomBehavior = d3.zoom()
                 .filter(event => {
-                    if (editMode.value === 'MOVE') {
+                    if (editMode.value === EDITMODES['Move'].name) {
                         return true
                     }
                     return event.type === 'wheel' ||
@@ -166,7 +160,7 @@ export default function useScatter(stageData, stage) {
 
         const zoom = ensureZoomBehavior()
 
-        const lasso = createLasso({
+        const lasso = useLasso({
             svg: d3.select(container.value),
             onDraw: (items) => {
                 items.attr('class', d =>
@@ -177,7 +171,7 @@ export default function useScatter(stageData, stage) {
                 stageSelection.value = selected.map(s => s.word)
             },
             getZoom: () => currentTransform.value,
-            enabled: editMode.value === 'LASSO'
+            enabled: editMode.value === EDITMODES['Lasso'].name
         });
 
         d3.select(container.value)
@@ -189,8 +183,8 @@ export default function useScatter(stageData, stage) {
 
         if (!initialTransformApplied && container.value) {
             initialTransformApplied = true
-            if (stage?.stateNoUndo?.json?.transform) {
-                setZoomTransform(stage.stateNoUndo.json.transform)
+            if (initTransformState) {
+                setZoomTransform(initTransformState)
             }
         }
     }, { deep: true })

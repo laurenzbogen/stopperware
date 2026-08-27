@@ -8,7 +8,7 @@
 </template>
 
 <script setup>
-import { useLocalData } from '@/components/composables/useData';
+import { useData } from '@/components/composables/useData';
 import { useRequest } from '../composables/useRequest';
 import { onMounted, ref, computed } from 'vue';
 
@@ -16,7 +16,7 @@ import { onMounted, ref, computed } from 'vue';
 const props = defineProps(['stage', 'selection'])
 const emit = defineEmits(['selectionChange', 'findSimilarWords'])
 
-const { data } = useLocalData()
+const { data } = useData()
 const hash = computed(() => data.value.corpus.hash)
 const endpoint = computed(() => `/similar/${hash.value}/${props.stage.selected}`)
 

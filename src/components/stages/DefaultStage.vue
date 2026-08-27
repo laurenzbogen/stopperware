@@ -1,32 +1,39 @@
 <template>
     <div class="h-80">
-        <svg :id="id" ref="container" width="100%" height="100%" @contextmenu="handleContextMenu"></svg>
+        <ScatterDiagram v-bind="scatterStageProps" />
     </div>
 </template>
 
 <script setup>
 import { computed, inject, provide, ref, watch } from 'vue'
 import { onMounted, useTemplateRef } from 'vue';
-import ContextMenu from '../ContextMenu.vue';
-import useScatter from '../composables/useScatter';
-import { useLocalData } from '@/components/composables/useData'
+import { useData } from '@/components/composables/useData'
 import SuperJSON from 'superjson';
+import ScatterDiagram from '../ScatterDiagram.vue';
 
-const props = defineProps(["id", "stage"])
-const { id, stage } = props
+const { id } = defineProps(["id"])
 const { pipeline, changeStageFilter, getCumulativeFilter } = inject('injectPipeline')
-const { onWordContextMenu, updateStageState } = inject('injectGlobalState')
+const { data, onWordContextMenu, updateStageState } = inject('injectGlobalState')
 
 const stageSelection = ref([])
-
 const currentFilter = computed(() => getCumulativeFilter(id))
 
-const container = useTemplateRef("container")
-const normalizedData = computed(() => {
-    const { minX, maxX, minY, maxY, embedding: data } = useLocalData().getters.get_embedding()
-    return { minX, maxX, minY, maxY, data }
-})
-// 
+const scatterStageProps = computed(() => ({
+    id: id,
+    scatterData: data.value.corpus.embedding,
+    lassoOptions: {
+        onLassoEnd
+    },
+    onWordContextMenu
+}))
+
+
+function onLassoEnd(selected) {
+    const s = data.value.corpus.embedding.embedding.filter((e, i) => selected[i]).map(e => e.word)
+    data.value.stages.get(id).selection = s
+
+}
+
 function handleContextMenu(e) {
     e.preventDefault()
     let newOptions = {}
@@ -42,37 +49,8 @@ function handleContextMenu(e) {
     } else {
         //TODO
     }
-
     onWordContextMenu(e, newOptions)
-
 }
-
-
-
-const stageData = {
-    container,
-    reactiveData: normalizedData,
-    currentFilter,
-    stageSelection,
-    onWordContextMenu
-}
-
-const stageState = ref(null)
-watch(
-    () => stage,
-    (newState) => {
-        if (newState === undefined) return //todo placeholder
-
-        stageState.value = newState
-    }, { immediate: true })
-
-const { currentTransform } = useScatter(stageData, stage)
-watch(currentTransform, () => {
-    const state = SuperJSON.serialize({ transform: currentTransform })
-    updateStageState(id, state, false)
-}, { deep: true })
-
-
 
 
 

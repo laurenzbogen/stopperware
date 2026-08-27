@@ -37,16 +37,11 @@
 import { computed, inject, onMounted, ref, watch } from 'vue';
 import { useDropzone } from "vue3-dropzone";
 import { v4 as uuidv4 } from "uuid";
-import superjson from 'superjson';
+import superjson, { SuperJSON } from 'superjson';
 
-const { updateStageState } = inject('injectGlobalState')
+const { updateStageState, data } = inject('injectGlobalState')
 const props = defineProps(["id", "stage"])
 const { id, stage } = props
-
-// const stage = computed({
-//     get: () => props.stage,
-//     set: (val) => {props.stage = val}
-// })
 
 const files = ref(new Map())
 const textareaValue = ref('')
@@ -56,18 +51,20 @@ const state = computed(() => ({
     files: files.value,
     areaStopwords: areaStopwords.value
 }))
-let lastPushedState = null
+
+const stagesStateHistory = computed(() => {
+    const rawData = data.value.stagesStateHistory.get(id)
+    return rawData ? SuperJSON.parse(rawData) : null
+})
 
 watch(
-    () => props.stage.state,
+    stagesStateHistory,
     (newState) => {
-        if (newState === undefined) return //todo placeholder
-        //if (newState === lastPushedState) return
+        if (!newState ) return //todo placeholder
 
-        const s = superjson.parse(newState)
-        files.value = s.files
-        areaStopwords.value = s.areaStopwords
-        textareaValue.value = s.areaStopwords.join('\n')
+        files.value = newState.files
+        areaStopwords.value = newState.areaStopwords
+        textareaValue.value = newState.areaStopwords.join('\n')
     }, { immediate: true })
 
 
@@ -75,9 +72,7 @@ watch(
     () => [state.value.areaStopwords.length, state.value.files.size],
     ([newStopLen, newFilesSize], [oldStopLen, oldFilesSize]) => {
         if (newStopLen !== oldStopLen || newFilesSize !== oldFilesSize) {
-            const serialized = superjson.stringify(state.value)
-            lastPushedState = serialized
-            updateStageState(id, serialized, true)
+            updateStageState(id, state.value, true)
         }
     }
 )

@@ -1,7 +1,8 @@
-import { computed, ref, toValue, watch, watchEffect } from "vue"
-import { getInitializedPipeline } from "../../helpers";
+import { computed, createSlots, ref, toValue, watch, watchEffect } from "vue"
+import { EDITMODES, getInitializedPipeline, getInitializedStage } from "../../helpers";
 import { useRefHistory } from '@vueuse/core'
 import SuperJSON from "superjson";
+import { v4 as uuidv4 } from "uuid";
 
 // {
 //     corpus?: {
@@ -16,43 +17,70 @@ import SuperJSON from "superjson";
 //     }],
 // }
 
-export function useLocalData() {
+export function useData() {
     const string = localStorage.getItem('stopwordsLocalData')
-    const data = !string ? ref(null) : ref(SuperJSON.parse(string))
-    const wordcount = computed(() => data.value["corpus"]["word_count"])
+    const parsed = !string ? null : SuperJSON.parse(string)
 
-    const undoData = computed({
+    const corpus = !parsed ? ref(null) : ref(parsed.corpus)
+    const stagePipelines = !parsed ? ref(null) : ref(parsed.stagePipelines)
+    const stages = !parsed ? ref(null) : ref(parsed.stages)
+    const stagesStateHistory = !parsed ? ref(null) : ref(parsed.stagesStateHistory)
+    const stagesStateNoHistory = !parsed ? ref(null) : ref(parsed.stagesStateNoHistory)
+    const stopwords = !parsed ? ref(null) : ref(parsed.stopwords)
+    const editorData = !parsed ? ref(null) : ref(parsed.editorData)
+
+    const data = computed({
         get: () => ({
-            stopwords: data.value.stopwords,
-            // filter out no history updates
-            stagePipelines: data.value.stagePipelines.map(({ stateNoUndo, ...rest }) => rest),
+            corpus: corpus.value,
+            stagePipelines: stagePipelines.value,
+            stages: stages.value,
+            stagesStateHistory: stagesStateHistory.value,
+            stagesStateNoHistory: stagesStateNoHistory.value,
+            stopwords: stopwords.value,
+            editorData: editorData.value,
         }),
         set: (val) => {
-            data.value.stopwords = val.stopwords
-            //update everything with history
-            data.value.stagePipelines = data.value.stagePipelines.map((existing, i) => {
-                const { stateNoUndo, ...rest } = val.stagePipelines[i]
-                return { ...existing, ...rest }
-            })
+            corpus.value = val.corpus
+            stagePipelines.value = val.stagePipelines
+            stages.value = val.stages
+            stagesStateHistory.value = val.stagesStateHistory
+            stagesStateNoHistory.value = val.stagesStateNoHistory
+            stopwords.value = val.stopwords
+            editorData.value = val.editorData
         }
     })
 
-    const refHistory = useRefHistory(undoData, { deep: true, dump: SuperJSON.stringify, parse: SuperJSON.parse })
-    const { history, undo, redo } = refHistory
+    const wordcount = computed(() => data.value["corpus"]["word_count"])
 
-    function findStage(id) {
-        const pipelineIndex = data.value.stagePipelines.findIndex(p => p.stages.some(s => s.id === id))
-        const stageIndex = data.value.stagePipelines[pipelineIndex].stages.findIndex(s => s.id === id)
+    const historyData = computed({
+        get: () => ({
+            stagePipelines: stagePipelines.value,
+            stages: stages.value,
+            stagesStateHistory: stagesStateHistory.value,
+            stopwords: stopwords.value
+        }),
+        set: (val) => {
+            stagePipelines.value = val.stagePipelines
+            stages.value = val.stages
+            stagesStateHistory.value = val.stagesStateHistory
+            stopwords.value = val.stopwords
+        }
+    })
 
-        return [pipelineIndex, stageIndex]
+    const refHistory = useRefHistory(historyData, { deep: true, dump: SuperJSON.stringify, parse: SuperJSON.parse })
+
+    function addStage(type, pipelineId) {
+        const stage = getInitializedStage(type, pipelineId)
+        data.value.stagePipelines.get(pipelineId).stages.push(stage.id)
+        stages.value.set(stage.id, stage)
     }
 
+
     function updateStageState(id, state, withHistory) {
-        const [pIndex, sIndex] = findStage(id)
         if (withHistory) {
-            data.value.stagePipelines[pIndex].stages[sIndex].state = state
+            stagesStateHistory.value.set(id, SuperJSON.stringify(state))
         } else {
-            data.value.stagePipelines[pIndex].stages[sIndex].stateNoUndo = state
+            stagesStateNoHistory.value.set(id, SuperJSON.stringify(state))
         }
     }
 
@@ -64,30 +92,52 @@ export function useLocalData() {
     }
 
 
-    function get_embedding() {
-        return data.value["corpus"]["embedding"]
-    }
-
     watch(data, () => {
         const dataObject = data.value
         localStorage.setItem('stopwordsLocalData', SuperJSON.stringify(dataObject))
     }, { deep: true })
 
+    function initializePipelines() {
+        const initData = getInitData()
+        const oldValue = data.value
+        data.value = {
+            ...initData,
+            corpus: oldValue.corpus
+        }
 
-    function storePipeline(pipeline, index) {
-        data.value.stagePipelines[index] = pipeline
     }
 
-    return { data, updateStageState, refHistory, storePipeline, getters: { get_filtered_wc, get_embedding } }
+
+    return {
+        data,
+        addStage,
+        updateStageState,
+        initializePipelines,
+        refHistory,
+        getters: { get_filtered_wc }
+    }
 }
 
 export function getInitData() {
-    return {
+    let initData = {
         corpus: null,
+        stages: new Map(),
+        stagesStateHistory: new Map(),
+        stagesStateNoHistory: new Map(),
         stopwords: new Set(),
-        // include invisible pipelines
-        stagePipelines: [getInitializedPipeline(), getInitializedPipeline(), getInitializedPipeline()],
+        stagePipelines: new Map(),
+        editorData: {
+            mainToolSelected: EDITMODES['Move'].name
+        }
     }
+
+    // include invisible pipelines
+    for (let i = 0; i < 3; i++) {
+        const pipeline = getInitializedPipeline(i)
+        initData.stagePipelines.set(pipeline.id, pipeline)
+    }
+
+    return initData
 }
 
 

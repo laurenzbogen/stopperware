@@ -21,8 +21,6 @@
                         :class="stage === selected ? 'bg-base-200' : 'bg-none'">
                         <div>{{ stage.item }}</div>
                         <Enter v-if="stage === selected" />
-
-
                     </li>
                 </div>
             </ul>
@@ -42,7 +40,6 @@ const emit = defineEmits(['selected'])
 const modal = useTemplateRef('picker_modal')
 const fuzzyInput = useTemplateRef('fuzzyInput')
 
-import { v4 as uuidv4 } from "uuid";
 import Cross from '@/icons/Cross.vue';import Enter from '@/icons/Enter.vue';
 
 const stageTypes = props.stageTypes
@@ -117,15 +114,15 @@ function handleKeyDown(e) {
 
 function emitSelectedStage(type) {
     modal.value.close()
-    const stage = {
-        pipeline: lastPipelineInfo.value.pipelineID,
-        id: uuidv4(),
-        index: lastPipelineInfo.value.index,
-        type: type,
-        filter: [],
-    }
+    //const stage = {
+    //    pipeline: lastPipelineInfo.value.pipelineID,
+    //    id: uuidv4(),
+    //    index: lastPipelineInfo.value.index,
+    //    type: type,
+    //    filter: [],
+    //}
 
-    emit('selected', stage)
+    emit('selected', type, lastPipelineInfo.value.pipelineID)
 }
 
 

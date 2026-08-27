@@ -2,12 +2,13 @@
     <div ref="container" class="h-80">
         <svg width="100%" height="100%"></svg>
     </div>
+    <!-- <svg ref="" width="100%" height="100%"></svg> -->
 
 
 </template>
 <script setup>
 import { onMounted, computed, useTemplateRef, onUnmounted, inject, watch, ref } from 'vue';
-import { useLocalData } from '@/components/composables/useData';
+import { useData } from '@/components/composables/useData';
 import * as d3 from 'd3';
 import cloud from 'd3-cloud';
 import { useSelectionStyle } from '../util/util';
@@ -16,7 +17,7 @@ const { id } = defineProps(['id'])
 const container = useTemplateRef("container")
 const { pipeline, getCumulativeFilter } = inject("injectPipeline")
 const { onWordContextMenu } = inject('injectGlobalState')
-const { getters: { get_filtered_wc } } = useLocalData()
+const { getters: { get_filtered_wc } } = useData()
 
 let resizeTimer = ref(null)
 const { getSelectionStyle, triggers } = useSelectionStyle()
