@@ -1,57 +1,129 @@
 <template>
-    <div ref="container" class="h-80">
-        <svg width="100%" height="100%"></svg>
-    </div>
-    <!-- <svg ref="" width="100%" height="100%"></svg> -->
-
-
+    <svg ref="container" width="100%" height="100%">
+        <Lasso v-bind="{ container, targets: zoomedPositions, lassoOptions }" />
+    </svg>
 </template>
+
 <script setup>
-import { onMounted, computed, useTemplateRef, onUnmounted, inject, watch, ref } from 'vue';
-import { useData } from '@/components/composables/useData';
 import * as d3 from 'd3';
+import Lasso from '../Lasso.vue';
 import cloud from 'd3-cloud';
-import { useSelectionStyle } from '../util/util';
+import { computed, inject, markRaw, onMounted, onUnmounted, ref, useTemplateRef, watch } from 'vue';
+import useZoom from '../composables/useZoom';
+
+const { data } = inject('injectGlobalState')
 
 const { id } = defineProps(['id'])
-const container = useTemplateRef("container")
-const { pipeline, getCumulativeFilter } = inject("injectPipeline")
-const { onWordContextMenu } = inject('injectGlobalState')
-const { getters: { get_filtered_wc } } = useData()
+const container = useTemplateRef('container')
 
-let resizeTimer = ref(null)
-const { getSelectionStyle, triggers } = useSelectionStyle()
-watch(triggers, () => colorStopwords(), { deep: true })
+const layout = ref(null)
+const layoutedWordcloud = ref(null)
 
+const filteredWordcount = computed(() => data.value.corpus.word_count.filter(w => true))
+const max = computed(() => filteredWordcount.value.reduce((acc, w) => Math.max(acc, w.count), 0))
+const min = computed(() => filteredWordcount.value.reduce((acc, w) => Math.min(acc, w.count), Infinity))
 
-const currentFilter = computed(() => getCumulativeFilter(id))
-watch(currentFilter, () => {
-    calculate()
-}, { deep: true }
-)
+const scale = computed(() => d3.scalePow().domain([min.value, max.value < 500 ? max.value : 500]).range([16, 72]).clamp(true))
 
-onMounted(async () => {
-    window.addEventListener("resize", handleResize)
-    calculate()
+const resizeTimer = ref(null)
+const lazyWindowDimensions = ref(null)
+
+const stage = computed(() => data.value.stages.get(id))
+
+watch([stage, () => data.value.stopwords], () => {
+    applyColors()
+}, { deep: true })
+
+const scaledPositions = computed(() => layoutedWordcloud.value?.map(d => [d.x + layout.value.size()[0] / 2, d.y + layout.value.size()[1] / 2]))
+const { zoomedPositions, zoomTransform } = useZoom(id, container, scaledPositions)
+watch(zoomTransform, (zoomVal) => {
+    applyZoom(zoomVal)
 })
-onUnmounted(() => {
-    window.removeEventListener("resize", handleResize)
-    clearTimeout(resizeTimer)
-})
 
-function handleResize(e) {
-    if (!container.value) {
-        return
-    }
-    if (resizeTimer.value) clearTimeout(resizeTimer.value);
-    resizeTimer.value = setTimeout(() => {
-        calculate()
-    }, 200)
+const lassoOptions = { onLassoEnd }
+function onLassoEnd(selected) {
+    console.log(selected.length, layoutedWordcloud.value.length)
+    console.log(selected)
+    const s = layoutedWordcloud.value.filter((e, i) => selected[i]).map(e => e.word)
+    data.value.stages.get(id).selection = s
 }
 
+function applyColors() {
+    const selection = stage.value.selection
+    d3.select(container.value)
+        .selectAll('text')
+        .classed('text-info', d => selection?.includes(d.word))
+        .classed('text-accent', d => data.value.stopwords.has(d.word))
+        .classed('text-primary', d => selection?.includes(d.word) && data.value.stopwords.has(d.word))
+}
 
-function estimateMaxWords(dimensions, data, scale) {
-    const containerArea = dimensions.width * dimensions.height;
+function applyZoom(zoomVal) {
+    if (zoomVal === null) return
+    const { k, x, y } = zoomVal.transform
+    const newTransform = new d3.ZoomTransform(k, x, y)
+
+    d3.select(container.value)
+        .selectAll('text')
+        .attr('transform', newTransform)
+}
+
+watch(lazyWindowDimensions, (newDimensions, oldDimensions) => {
+    if (!newDimensions || newDimensions.some(v => v === 0)) {
+        console.log("Cloud dimensions are null or 0, skipping..")
+        return
+    }
+    if (oldDimensions && newDimensions.every((d, i) => d === oldDimensions[i])) return
+
+    const maxWords = estimateMaxWords()
+    //TODO workaround for shared state, still draws every wordcloud new when changing state...
+    const wordsToDraw = filteredWordcount.value.slice(0, maxWords).map(w => markRaw({ ...w }))
+
+    const thisLayout = cloud()
+        .size(lazyWindowDimensions.value)
+        .words(wordsToDraw)
+        .text((d) => d.word)
+        .rotate(0)
+        .fontSize(d => scale.value(d.count))
+        .padding(4)
+        .random(() => 0.5)
+        .on("end", (val) => {
+            layoutedWordcloud.value = val
+        })
+
+    layout.value = thisLayout
+    layout.value.start()
+})
+
+watch(layoutedWordcloud, (val) => {
+    d3.select(container.value)
+        .select("g").remove()
+    d3.select(container.value)
+        .append("g")
+        //should be same as dimensions.value
+        //.attr("transform", `translate(${layout.value.size()[0] / 2},${layout.value.size()[1] / 2})`)
+        .selectAll("text")
+        .data(val)
+        .join("text")
+        .style("font-size", d => `${d.size}px`)
+        .style("font-family", "Impact")
+        .attr("text-anchor", "middle")
+        //.attr("transform", d => `translate(${[d.x, d.y]})rotate(${d.rotate})`)
+
+        .attr('x', d => d.x + layout.value.size()[0] / 2)
+        .attr('y', d => d.y + layout.value.size()[1] / 2)
+        .text(d => d.word)
+        .attr('fill', 'currentColor');
+
+    applyZoom(zoomTransform.value)
+    applyColors(stage.value)
+}, { deep: true })
+
+
+
+
+
+function estimateMaxWords() {
+    const containerArea = lazyWindowDimensions.value[0] * lazyWindowDimensions.value[1]
 
     // Conservative packing efficiency — word clouds rarely exceed 30–40% fill
     const PACKING_EFFICIENCY = 0.8;
@@ -63,8 +135,8 @@ function estimateMaxWords(dimensions, data, scale) {
     let usedArea = 0;
     let count = 0;
 
-    for (const d of data) {
-        const fontSize = scale(d.count);
+    for (const d of filteredWordcount.value) {
+        const fontSize = scale.value(d.count);
         const wordWidth = d.word.length * fontSize * CHAR_WIDTH_RATIO + PADDING * 2;
         const wordHeight = fontSize + PADDING * 2;
         const wordArea = wordWidth * wordHeight;
@@ -77,79 +149,43 @@ function estimateMaxWords(dimensions, data, scale) {
     return count;
 }
 
-async function calculate() {
-    const data = get_filtered_wc(getCumulativeFilter(id))
-    const containerEl = container.value
-    d3.select(containerEl).selectAll('svg').remove()
 
-    const max = Math.max.apply(0, data.map(d => d.count))
-    const min = Math.min.apply(0, data.map(d => d.count))
-    let scale = d3.scalePow().domain([min, 500]).range([16, 72]).clamp(true)
 
-    if (containerEl.clientWidth == 0 || containerEl.clientHeight == 0) {
-        console.log("Cloud Container is Size 0, Skipping calculating Word Cloud")
+
+
+
+
+
+
+
+
+
+
+
+// Apply dimensions changes in a lazy way
+
+
+function handleResize(e) {
+    if (!container.value) {
+        return
     }
-
-    const maxWords = estimateMaxWords(
-        { width: containerEl.clientWidth, height: containerEl.clientHeight },
-        data,
-        scale
-    );
-
-    const sliced = data.slice(0, maxWords).map(d => ({ ...d }))
-
-    const layout = cloud()
-        .size([containerEl.clientWidth, containerEl.clientHeight])
-        .words(sliced)
-        .text(function (d) { return d.word })
-        .rotate(0)
-        .fontSize(d => scale(d.count))
-        .padding(4)
-        .random(() => 0.5)
-        .on("end", (words) => {
-            draw(words, layout)
-        }); // When layout is calculated, call draw
-
-    layout.start();
+    if (resizeTimer.value) clearTimeout(resizeTimer.value);
+    resizeTimer.value = setTimeout(() => {
+        lazyWindowDimensions.value = [
+            container.value.clientWidth,
+            container.value.clientHeight,
+        ]
+    }, 200)
 }
 
-function draw(words, layout) {
-    const containerEl = container.value
-    d3.select(containerEl).selectAll('svg').remove()
-    d3.select(containerEl)
-        .append("svg")
-        .attr("width", layout.size()[0])
-        .attr("height", layout.size()[1])
-        .append("g")
-        .attr("transform", `translate(${layout.size()[0] / 2},${layout.size()[1] / 2})`)
-        .selectAll("text")
-        .data(words)
-        .join("text")
-        .on("contextmenu", handleContextMenu)
-        .style("font-size", d => `${d.size}px`)
-        .style("font-family", "Impact")
-        .attr("text-anchor", "middle")
-        .attr("transform", d => `translate(${[d.x, d.y]})rotate(${d.rotate})`)
-        .text(d => d.word)
-        .attr('fill', 'currentColor');
-
-    colorStopwords()
-}
-
-function handleContextMenu(e, d) {
-    const newOptions = {
-        selection: [d.word], x: e.clientX, y: e.clientY, show: true,
-    }
-    onWordContextMenu(e, newOptions)
-}
-
-function colorStopwords() {
-    const containerEl = container.value
-    d3.select(containerEl).select("svg").select('g').selectAll('text')
-        .attr('class', (d) => {
-            return getSelectionStyle(d.word)
-        })
-}
+onMounted(async () => {
+    window.addEventListener("resize", handleResize)
+    handleResize()
+})
+onUnmounted(() => {
+    window.removeEventListener("resize", handleResize)
+    clearTimeout(resizeTimer)
+})
 
 
 

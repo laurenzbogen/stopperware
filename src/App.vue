@@ -3,9 +3,11 @@
     <template v-else>
         <div id="app" class="w-screen h-screen">
             <zoompinch ref="zoompinchRef" v-model:transform="transform"
-                :offset="{ top: 300, right: 0, bottom: 0, left: 0 }" :min-scale="0.1" :max-scale="4" :clamp-bounds="false"
-                :rotation="false" :zoom-speed="1" :translate-speed="1" :zoom-speed-apple-trackpad="1"
-                :translate-speed-apple-trackpad="1" :mouse="data.editorData.mainToolSelected === EDITMODES['Move'].name" :wheel="true" :touch="true" :gesture="true">
+                :offset="{ top: 300, right: 0, bottom: 0, left: 0 }" :min-scale="0.1" :max-scale="4"
+                :clamp-bounds="false" :rotation="false" :zoom-speed="1" :translate-speed="1"
+                :zoom-speed-apple-trackpad="1" :translate-speed-apple-trackpad="1"
+                :mouse="data.editorData.mainToolSelected === EDITMODES['Move'].name" :wheel="true" :touch="true"
+                :gesture="true">
                 <div class="min-w-screen h-screen relative" ref="main-wrapper" id="main">
                     <div id="content_wrapper" ref="content-wrapper" class="flex gap-32">
                         <template :key="pipeline.id" v-for="(pipeline, i) in orderedPipelines">
@@ -14,10 +16,9 @@
                             </div>
 
                             <div v-if="i == data.stagePipelines.size - 2" class="-mr-44">
-                                <button @click="addNewPipeline"
-                                    class="text-neutral/50 hover:text-neutral/80 hover:bg-base-200 rounded-sm p-1">
+                                <SmallButton @click="addNewPipeline()">
                                     <Plus class="w-6 h-6 relative z-50" />
-                                </button>
+                                </SmallButton>
                             </div>
 
                         </template>
@@ -36,23 +37,20 @@
                     <p>OVERVIEW</p>
                     <p>{{ data.stagePipelines.size }}</p>
                     <button class="btn" @click="initializePipelines">init</button>
-                    <PipelineDiagram :pipelines="orderedPipelines.slice(1, -1)" :detailStage="detailStage" />
+                    <PipelineDiagram :pipelines="orderedPipelines.slice(1, -1)" />
+
+
+                    {{ data.stopwords }}
 
                     <!-- <p>{{orderedPipelines.map(p => p.position)}}</p> -->
                     <p v-for="p in orderedPipelines">{{ p.stages }}</p> -->
                 </div>
                 <div
-                    class="w-60 h-screen bg-neutral-content border-l-3 border-base-200/30 pointer-events-auto text-sm font-bold p-4 z-50">
-                    <p>DETAILS</p>
-
-                    <p>{{ detailStage }}</p>
-                    <p> {{ data.stages.get(detailStage) }}</p>
-                    <button class="btn btn-accent btn-outline btn-wide" @click="deleteStage(detailStage)">Delete
-                        Stage</button>
+                    class="w-60 h-screen bg-neutral-content border-l-3 border-base-200/30 pointer-events-auto p-4 z-50 overflow-y-scroll">
+                    <OverlayDetailStage />
                 </div>
 
-                <div
-                    class="pointer-events-auto fixed left-1/2 bottom-20 -translate-x-1/2 z-100">
+                <div class="pointer-events-auto fixed left-1/2 bottom-20 -translate-x-1/2 z-100">
                     <OverlayToolbelt />
                 </div>
             </div>
@@ -75,6 +73,8 @@ import ContextMenu from './components/ContextMenu.vue';
 import Plus from "./icons/Plus.vue";
 import { EDITMODES, getInitializedPipeline } from "./helpers"; import PipelineDiagram from "./components/PipelineDiagram.vue";
 import OverlayToolbelt from "./components/OverlayToolbelt.vue";
+import OverlayDetailStage from "./components/OverlayDetailStage.vue"; import SmallButton from "./components/design/SmallButton.vue";
+
 
 
 const contextMenuOptions = ref({
@@ -95,7 +95,7 @@ const mainWrapper = useTemplateRef('main-wrapper')
 const pipelineWrappers = useTemplateRef('pipelineWrappers')
 const pipelineComponents = useTemplateRef('pipelineComponents')
 
-const detailStage = ref(null)
+const detailStageId = ref(null)
 
 const left = ref(0)
 const t = ref(0)
@@ -111,7 +111,8 @@ onMounted(() => {
     mainWrapper.value.addEventListener("wheel", handleScroll, { passive: false })
 })
 
-const { data, addStage, updateStageState, initializePipelines, refHistory } = useData()
+const managedData = useData()
+const { data, addStage, updateStageState, initializePipelines, refHistory } = managedData
 const orderedPipelines = computed(() => [...data.value.stagePipelines.values()].sort((a, b) => a.position - b.position))
 
 
@@ -135,7 +136,6 @@ function bulkChangeIsStopword(words, addIfTrue) {
 }
 
 function onPickerSelect(stageType, pipelineId) {
-    console.log(pipelineId)
     addStage(stageType, pipelineId)
     //data.value.stagePipelines.get(stage.pipeline).stages.splice(stage.index, 0, stage)
 }
@@ -147,9 +147,6 @@ function isStopword(stopword) {
 const zoompinchRef = useTemplateRef('zoompinchRef')
 
 
-const setDetailStage = (val) => {
-    detailStage.value = val
-}
 
 
 const getInitDragOptions = () => ({
@@ -271,17 +268,17 @@ function handleStageDragEnd() {
     dragAction.value = getInitDragOptions()
 }
 
+
 provide('injectGlobalState', {
-    data,
+    ...managedData,
     stopwords,
     bulkChangeIsStopword,
     isStopword,
     chooseStage: (pipelineInfo) => picker.value?.open(pipelineInfo),
     editMode,
     zoompinchRef,
-    setDetailStage,
+    detailStageId,
     onWordContextMenu,
-    updateStageState,
     stageDrag: {
         dragAction,
         handleStageDragStart,

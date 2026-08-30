@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import Lasso from "./icons/Lasso.vue";
 import Move from "./icons/Move.vue";
+import { MousePointer2 } from "@lucide/vue";
 import Placeholder from "./icons/Placeholder.vue";
 
 
@@ -24,8 +25,9 @@ export function getInitializedStage(type, pipelineId, position) {
 }
 
 export const EDITMODES = {
-    Move: {name: 'Move', icon: Move},
-    Lasso: {name: 'Lasso', icon: Lasso},
-    Placeholder: {name: 'Placeholder', icon: Placeholder}
+    Select: { name: 'Select', icon: MousePointer2 },
+    Move: { name: 'Move', icon: Move },
+    Lasso: { name: 'Lasso', icon: Lasso },
+    Placeholder: { name: 'Placeholder', icon: Placeholder }
 
 }

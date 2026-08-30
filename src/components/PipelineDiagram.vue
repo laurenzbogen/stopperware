@@ -12,7 +12,7 @@
                 <line :x1="colCenter(i_p)" :y1="i_s === 0 ? branchY : firstBoxY + (i_s - 1) * rowSpacing + boxH"
                     :x2="colCenter(i_p)" :y2="firstBoxY + i_s * rowSpacing" :class="strokeClass" stroke-width="1" />
                 <rect :x="colCenter(i_p) - boxW / 2" :y="firstBoxY + i_s * rowSpacing" :width="boxW" :height="boxH"
-                    :rx="boxR" :fill="detailStage === s.id ? 'bg-primary-content' : 'white'" :class="strokeClass" stroke-width="1">
+                    :rx="boxR" :fill="detailStageId === s.id ? 'bg-primary-content' : 'white'" :class="strokeClass" stroke-width="1">
 
                 </rect>
 
@@ -22,8 +22,10 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
-const props = defineProps(['pipelines', 'detailStage'])
+import { computed, inject } from 'vue'
+const props = defineProps(['pipelines'])
+const {detailStageId} = inject('injectGlobalState')
+
 
 // Layout constants — everything below is derived from these,
 // so changing one value keeps the whole diagram consistent.

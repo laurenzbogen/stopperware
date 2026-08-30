@@ -9,7 +9,7 @@
         class="border-t border-2 w-[700px]" :ref="el => setDivider(el, 0)"></div>
 
     <template v-for="stage, i in stageIds.map(s => data.stages.get(s))">
-        <div @pointerdown="setDetailStage(stage.id)">
+        <div v-if="stage" @pointerdown="detailStageId = stage.id">
             <div class="bg-base-200/70 px-2 pb-2 rounded-lg my-4 drop-shadow relative w-[700px]"
                 @pointerdown="(e) => handleDragDown(e, i)" ref="stageWrappers" :style="dragAction.dragStage.id === stage.id && dragAction.dragging ? {
                     position: 'absolute',
@@ -52,7 +52,7 @@ import { ref, watch, computed, provide, inject, useTemplateRef, toValue, onBefor
 import { v4 as uuidv4 } from "uuid";
 import { stageTypeMap } from '@/stageTypeMap';
 
-const { data, chooseStage, setDetailStage, stageDrag } = inject("injectGlobalState")
+const { data, chooseStage, detailStageId, stageDrag } = inject("injectGlobalState")
 const { id } = defineProps(['id'])
 
 const pipeline = computed({
@@ -89,7 +89,7 @@ const { dragAction, handleStageDragStart, handleStageDrag, handleStageDragEnd, }
 
 
 function handleDragDown(e, i) {
-    const isFrame = !stageComponents.value[i].contains(e.target)
+    const isFrame = !stageComponents.value[i]?.contains(e.target)
     if (isFrame) {
         handleStageDragStart(stageIds.value[i], e)
         e.preventDefault()

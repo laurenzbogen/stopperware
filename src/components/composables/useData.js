@@ -1,4 +1,4 @@
-import { computed, createSlots, ref, toValue, watch, watchEffect } from "vue"
+import { computed, createSlots, ref, toRaw, toValue, watch, watchEffect } from "vue"
 import { EDITMODES, getInitializedPipeline, getInitializedStage } from "../../helpers";
 import { useRefHistory } from '@vueuse/core'
 import SuperJSON from "superjson";
@@ -16,7 +16,6 @@ import { v4 as uuidv4 } from "uuid";
 //          id, selection, stages
 //     }],
 // }
-
 export function useData() {
     const string = localStorage.getItem('stopwordsLocalData')
     const parsed = !string ? null : SuperJSON.parse(string)
@@ -50,7 +49,10 @@ export function useData() {
         }
     })
 
-    const wordcount = computed(() => data.value["corpus"]["word_count"])
+    watch(data, () => {
+        const dataObject = data.value
+        localStorage.setItem('stopwordsLocalData', SuperJSON.stringify(dataObject))
+    }, { deep: true })
 
     const historyData = computed({
         get: () => ({
@@ -66,7 +68,6 @@ export function useData() {
             stopwords.value = val.stopwords
         }
     })
-
     const refHistory = useRefHistory(historyData, { deep: true, dump: SuperJSON.stringify, parse: SuperJSON.parse })
 
     function addStage(type, pipelineId) {
@@ -75,6 +76,11 @@ export function useData() {
         stages.value.set(stage.id, stage)
     }
 
+    function deleteStage(stageId) {
+        const stage = data.value.stages.get(stageId)
+        data.value.stages.delete(stageId)
+        data.value.stagePipelines.get(stage.pipeline).stages = data.value.stagePipelines.get(stage.pipeline).stages.filter(s => s !== stageId)
+    }
 
     function updateStageState(id, state, withHistory) {
         if (withHistory) {
@@ -84,18 +90,13 @@ export function useData() {
         }
     }
 
-    function get_filtered_wc(filter) {
-        return wordcount.value
-            .slice(0, 200 + filter.length)
-            .filter(e => !filter.includes(e.word))
-            .slice(0, 200)
+    function setOperationStopwords(wordSet, operation) {
+        // 'union' / 'intersection' / 'difference'
+        if (!stopwords.value[operation]) throw new Error('invalid set operation on stopwords set')
+        const set = toRaw(stopwords.value)
+        stopwords.value = set[operation](wordSet)
+
     }
-
-
-    watch(data, () => {
-        const dataObject = data.value
-        localStorage.setItem('stopwordsLocalData', SuperJSON.stringify(dataObject))
-    }, { deep: true })
 
     function initializePipelines() {
         const initData = getInitData()
@@ -104,17 +105,18 @@ export function useData() {
             ...initData,
             corpus: oldValue.corpus
         }
-
     }
-
 
     return {
         data,
+
+        deleteStage,
+        setOperationStopwords,
+
         addStage,
         updateStageState,
         initializePipelines,
         refHistory,
-        getters: { get_filtered_wc }
     }
 }
 
