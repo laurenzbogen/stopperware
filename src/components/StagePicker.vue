@@ -32,9 +32,9 @@
 
 <script setup>
 import { onMounted, ref, useTemplateRef } from 'vue';
+import { stageTypeMap } from '@/stageTypeMap';
 import Fuse from 'fuse.js'
 
-const props = defineProps(['stageTypes'])
 const emit = defineEmits(['selected'])
 
 const modal = useTemplateRef('picker_modal')
@@ -42,8 +42,7 @@ const fuzzyInput = useTemplateRef('fuzzyInput')
 
 import Cross from '@/icons/Cross.vue';import Enter from '@/icons/Enter.vue';
 
-const stageTypes = props.stageTypes
-const fuse = new Fuse(stageTypes)
+const fuse = new Fuse(Object.keys(stageTypeMap))
 const filteredStageTypes = ref(fuse.search(''))
 const lastPipelineInfo = ref(null)
 const selected = ref(filteredStageTypes.value[0].item)

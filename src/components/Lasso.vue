@@ -12,7 +12,7 @@ const { container, targets, lassoOptions } = defineProps(['container', 'targets'
 const { onLassoStart, onLassoDrag, onLassoEnd } = lassoOptions
 
 const { data } = inject('injectGlobalState')
-const enabled = computed(() => data.value.editorData.mainToolSelected === EDITMODES['Lasso'].name)
+const enabled = computed(() => data.value.editorData.mainToolSelected === EDITMODES['LassoPlus'].name || data.value.editorData.mainToolSelected === EDITMODES['LassoMinus'].name)
 
 
 const lassoEvents = ref([])
@@ -34,6 +34,7 @@ watch(() => container, () => {
             return enabled.value === true
         })
         .on('start', (e) => {
+            console.log(0)
             lassoEvents.value = [e];
             onLassoStart?.();
         })

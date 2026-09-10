@@ -3,7 +3,7 @@ import { createSlots, inject } from "vue"
 export function useSelectionStyle(stageSelection) {
     console.log(stageSelection)
     const { isStopword, stopwords } = inject('injectGlobalState')
-    const { selection: pipelineSelection } = inject('injectPipeline')
+    const { selection: pipelineSelection } = inject('injectPipelineState')
     const triggers = [ stopwords, pipelineSelection ]
 
 

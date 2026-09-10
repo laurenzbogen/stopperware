@@ -9,7 +9,7 @@ export function getInitializedPipeline(position) {
     return {
         id: uuidv4(),
         position: position,
-        selection: new Set([]),
+        selectionGroupId: uuidv4(),
         stages: [],
     }
 }
@@ -21,13 +21,24 @@ export function getInitializedStage(type, pipelineId, position) {
         index: position,
         type: type,
         filter: [],
+        resizeHeight: 400,
     }
 }
 
 export const EDITMODES = {
     Select: { name: 'Select', icon: MousePointer2 },
     Move: { name: 'Move', icon: Move },
-    Lasso: { name: 'Lasso', icon: Lasso },
+    LassoPlus: { name: 'LassoPlus', icon: Lasso },
+    LassoMinus: { name: 'LassoMinus', icon: Lasso },
     Placeholder: { name: 'Placeholder', icon: Placeholder }
 
+}
+
+
+export async function hashString(str) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(str);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }

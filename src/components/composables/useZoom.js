@@ -4,9 +4,8 @@ import SuperJSON from "superjson";
 import { watch, inject, ref, computed, createSlots } from 'vue';
 
 export default function useZoom(id, container, scaledPositions) {
-    const { data, updateStageState } = inject('injectGlobalState')
-    const rawStageStateNoHistory = data.value.stagesStateNoHistory.get(id)
-    const stageStateNoHistory = rawStageStateNoHistory ? SuperJSON.parse(rawStageStateNoHistory) : null
+    const { data, updateStageState, zoomIsGesturing: globalZoomIsBlocking } = inject('injectGlobalState')
+    const stageStateNoHistory = data.value.stagesStateNoHistory.get(id)
 
 
     const zoomTransform = ref(null);
@@ -22,6 +21,7 @@ export default function useZoom(id, container, scaledPositions) {
 
     watch(zoomTransform, (zoomVal) => {
         const state = { transform: zoomVal }
+        // data.value.editorData.detailStageId = id
         updateStageState(id, state, false)
     })
 
@@ -43,6 +43,9 @@ export default function useZoom(id, container, scaledPositions) {
 
 
     function filterZoomEvents(event, z) {
+        if (globalZoomIsBlocking.value) {
+            return false
+        }
         //todo touchscreen
         if (event.type === 'mousedown') {
             return data.value.editorData.mainToolSelected === EDITMODES['Move'].name

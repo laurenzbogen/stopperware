@@ -32,7 +32,7 @@
 import { ref, watchEffect, inject } from 'vue';
 
 const { id } = defineProps(["id"])
-const { pipeline, changeStageFilter, getCumulativeFilter } = inject('injectPipeline')
+const { pipeline, changeStageFilter, getCumulativeFilter } = inject('injectPipelineState')
 const filter = ref([])
 const toggled = ref(false)
 

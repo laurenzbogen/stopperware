@@ -1,99 +1,73 @@
 <template>
-    <div class="relative max-w-4xl grid place-items-center my-8 mx-auto">
-        <div :style="`opacity: ${loading ? 0 : 1};`">
-            <div v-bind="getRootProps()"
-                class="min-h-48 w-full h-full grid place-items-center cursor-pointer striped-background"
-                id="corpusUploadDropzone">
-                <input v-bind="getInputProps()" />
-                <p v-if="isDragActive">Drop the files here ...</p>
-                <p v-else>Drag 'n' drop some files here, or click to select files</p>
-            </div>
-
-            <div class="w-full flex">
-                <div class="flex-1">
-                    <div class="flex justify-between" v-for="(f, i) in filesSelected">
-                        <p>{{ f.name }}</p>
-                        <button class="btn btn-outline btn-square btn-xs p-1" @click="() => removeFile(i)">
-                            X
-                        </button>
-                    </div>
-
-                </div>
-                <button class="btn m-4 w-sm" @click="upload">Upload</button>
-            </div>
-
-        </div>
-        <div v-if="loading" class="absolute left-1/2 top-1/2 -translate-1/2 loading loading-spinner">
-            Done
-        </div>
+    <div
+        :class="`fixed pointer-events-none left-0 top-0 w-screen h-screen ${isOverDropZone && enabled ? 'bg-info/30' : ''}`">
+        <!--     <div v-show="!data.corpus" role="alert" -->
+        <!--         class="absolute left-1/2 top-12 -translate-1/2 z-100 alert alert-warning alert-soft"> -->
+        <!--         <span>No Corpus Selected, Drag and drop a Corpus Folder</span> -->
+        <!--         <span v-show="loading" class="loading loading-spinner loading-sm"></span> -->
+        <!--     </div> -->
     </div>
 </template>
 
 <script setup>
-import { useDropzone } from "vue3-dropzone";
-import { onMounted, ref } from "vue";
-import { getInitData } from "@/components/composables/useData";
+import { useDropZone } from '@vueuse/core'
+import SuperJSON from 'superjson';
+import { inject, ref } from 'vue';
 
-const filesSelected = ref([])
+const { data, calculateDependencies, uploadCorpus } = inject('injectGlobalState')
 const loading = ref(false)
+const { enabled } = defineProps(['enabled'])
 
-const emit = defineEmits(["createdCorpus"])
 
-function onDrop(acceptFiles, rejectReasons) {
-    filesSelected.value = acceptFiles
-}
 
-function removeFile(index) {
-    filesSelected.value.splice(index, 1)
-}
-
-async function upload() {
-    const files = filesSelected.value
+async function onDrop(files) {
+    if (!enabled) return
     if (files.length == 0) {
         return
     }
 
-    const formData = new FormData();
-    for (const file of files) {
-        formData.append("files", file);
-    }
-
-    loading.value = true
-
-    try {
-        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/uploadCorpus`, {
-            method: "POST",
-            body: formData,  // don't set Content-Type header — browser sets it automatically
-        });
-        const corpus = await response.json()
-        let initData = getInitData();
-        initData.corpus = corpus
-        // setLocalData(initData)
-        emit('createdCorpus', initData)
-    } catch (e) {
-        resetComponent()
+    if (isCsvFile(files[0])) {
+        if (files.length !== 1) return
+        handleCsvUpload(files[0])
         return
     }
 
+    handleTxtUpload(files)
 }
 
-function resetComponent() {
+async function handleCsvUpload(file) {
+    const formData = new FormData()
+    formData.append("file", file)
+    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/uploadSavefile`, {
+        method: "POST",
+        body: formData,
+        credentials: 'include'
+    });
+    const newData = await response.text()
+    data.value = SuperJSON.parse(newData)
+
+    await calculateDependencies()
+}
+
+async function handleTxtUpload(files) {
+    loading.value = true
+    await uploadCorpus(files)
     loading.value = false
-
 }
 
-const { getRootProps, getInputProps, ...rest } = useDropzone({ onDrop });
+const { isOverDropZone } = useDropZone(window.document, {
+    onDrop,
+    dataTypes: ['text/plain', 'text/csv', 'application/vnd.ms-excel', 'application/zip'],
+    multiple: true,
+    preventDefaultForUnhandled: false,
+})
 
+function isCsvFile(file) {
+    return (
+        file.type === 'text/csv' ||
+        file.type === 'application/zip' ||
+        file.type === 'application/vnd.ms-excel' ||
+        file.name?.toLowerCase().endsWith('.csv')
+    )
+}
 </script>
-
-<style>
-.striped-background {
-    background-image: repeating-linear-gradient(45deg,
-            gray 0,
-            gray 1px,
-            transparent 0,
-            transparent 50%);
-    background-size: 20px 20px;
-    background-attachment: fixed;
-}
-</style>

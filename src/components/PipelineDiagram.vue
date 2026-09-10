@@ -1,5 +1,6 @@
 <template>
-    <svg :viewBox="`0 0 ${dimensions[0]} ${dimensions[1]}`" xmlns="http://www.w3.org/2000/svg">
+    <svg style="width: 100%; height: 200px;" width="300" height="200" :viewBox="`0 0 ${dimensions[0]} ${dimensions[1]}`"
+        xmlns="http://www.w3.org/2000/svg">
         <!-- Trunk line down from top -->
         <line :x1="dimensions[0] / 2" :y1="trunkTop" :x2="dimensions[0] / 2" :y2="branchY" :class="strokeClass"
             stroke-width="1" />
@@ -12,7 +13,8 @@
                 <line :x1="colCenter(i_p)" :y1="i_s === 0 ? branchY : firstBoxY + (i_s - 1) * rowSpacing + boxH"
                     :x2="colCenter(i_p)" :y2="firstBoxY + i_s * rowSpacing" :class="strokeClass" stroke-width="1" />
                 <rect :x="colCenter(i_p) - boxW / 2" :y="firstBoxY + i_s * rowSpacing" :width="boxW" :height="boxH"
-                    :rx="boxR" :fill="detailStageId === s.id ? 'bg-primary-content' : 'white'" :class="strokeClass" stroke-width="1">
+                    :rx="boxR" :fill="detailStageId === s ? 'bg-neutral' : 'white'" :class="strokeClass"
+                    stroke-width="1">
 
                 </rect>
 
@@ -22,9 +24,10 @@
 </template>
 
 <script setup>
-import { computed, inject } from 'vue'
+import { computed, inject, watch } from 'vue'
 const props = defineProps(['pipelines'])
-const {detailStageId} = inject('injectGlobalState')
+const { data } = inject('injectGlobalState')
+const detailStageId = computed(() => data.value.editorData.detailStageId)
 
 
 // Layout constants — everything below is derived from these,

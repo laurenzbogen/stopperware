@@ -1,5 +1,7 @@
 <template>
-    <div ref="container" class="fixed left-0 top-0">
+    <div v-show="menuOptions.show" ref="container" class="z-200 fixed left-0 top-0" :style="{
+        translate: `${menuOptions.x}px ${menuOptions.y}px`
+    }">
         <ul class="menu bg-base-100 rounded-box z-1 w-52 p-2 shadow-sm">
             <li>{{ menuOptions.selection.length == 1 ? menuOptions.selection[0] : `${menuOptions.selection.length} items
                 selected` }}</li>
@@ -7,9 +9,14 @@
             <!-- <li @click="optionClicked('exclude')"><a>exclude</a></li> -->
             <li><a @click="optionClicked('addStop')">Stopwords Add</a></li>
             <li><a @click="optionClicked('removeStop')">Stopwords Remove</a></li>
-            <li><a @click="optionClicked('addSelection')">Selection Add</a></li>
-            <li><a @click="optionClicked('removeSelection')">Selection Remove</a></li>
-            <li><a @click="optionClicked('replaceSelection')">Selection Replace</a></li>
+
+            <li>
+                <span @click="() => menuFindSimilarWords(menuOptions.selection[0][0])">Find Similar Words</span>
+            </li>
+
+            <!-- <li><a @click="optionClicked('addSelection')">Selection Add</a></li> -->
+            <!-- <li><a @click="optionClicked('removeSelection')">Selection Remove</a></li> -->
+            <!-- <li><a @click="optionClicked('replaceSelection')">Selection Replace</a></li> -->
 
 
             <!-- <li> -->
@@ -29,23 +36,36 @@
 </template>
 <script setup>
 import { computed, inject, onMounted, useTemplateRef, watchEffect } from 'vue';
+import { getInitializedPipeline } from "@/helpers";
 
-const container = useTemplateRef("container")
 const { menuOptions } = defineProps(["menuOptions"])
-const { stopwords, bulkChangeIsStopword, isStopword, zoompinchRef } = inject('injectGlobalState')
+const { data, setOperationStopwords, addStage } = inject('injectGlobalState')
 
 const emit = defineEmits(["selected"])
 
 
+function menuFindSimilarWords(word) {
+    const newPipeline = getInitializedPipeline(data.value.stagePipelines.size)
+    data.value.selectionGroups.set(newPipeline.selectionGroupId, [])
+    data.value.stagePipelines.set(newPipeline.id, newPipeline)
+
+    const orderedPipelines = [...data.value.stagePipelines.values()].sort((a, b) => a.position - b.position)
+    const pipelineId = orderedPipelines[orderedPipelines.length - 2].id
+    addStage('SimilarWords', pipelineId, { similarKey: word })
+}
+
+
+const menuSelection = computed(() => menuOptions.selection)
+
 function optionClicked(option) {
     switch (option) {
         case "addStop":
-            bulkChangeIsStopword(menuOptions.selection, true)
-            // code block
+            setOperationStopwords(new Set(...menuSelection.value), 'union')
             break;
+
         case "removeStop":
             // code block
-            bulkChangeIsStopword(menuOptions.selection, false)
+            setOperationStopwords(new Set(...menuSelection.value), 'difference')
             break;
         case "addSelection":
             //changeSelection(menuOptions.selection, option)
@@ -64,18 +84,18 @@ function optionClicked(option) {
     }
 }
 
-function setStyle(options) {
-    const { x, y, word } = options
-    if (zoompinchRef.value === null) return
-    const [normX, normY] = zoompinchRef.value.normalizeClientCoords(x, y)
-
-
-    if (container.value) {
-        container.value.style.transform = `translate(${normX}px, ${normY}px)`
-    }
-}
-
-watchEffect(() => setStyle(menuOptions))
+//function setStyle(options) {
+//    const { x, y, word } = options
+//    if (zoompinchRef.value === null) return
+//    const [normX, normY] = zoompinchRef.value.normalizeClientCoords(x, y)
+//
+//
+//    if (container.value) {
+//        container.value.style.transform = `translate(${normX}px, ${normY}px)`
+//    }
+//}
+//
+//watchEffect(() => setStyle(menuOptions))
 
 window.addEventListener("click", () => menuOptions.show = false)
 

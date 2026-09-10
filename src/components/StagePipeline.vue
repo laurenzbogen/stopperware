@@ -1,42 +1,46 @@
 <template>
+    {{ dragAction.toStageIndex }}
     <div :class="`w-[700px] flex items-center m-2  shadow-sm gap-12 ${hidden ? 'opacity-0' : null}`">
         <h1 class="font-bold">Pipeline</h1>
-        <p>{{ selection.size }} selected</p>
-        <button @click="selection = new Set()" class="btn">Clear Selection</button>
+        <!-- <p>{{ selection.size }} selected</p> -->
+        <button @click="data.selectionGroups.set(pipeline.selectionGroupId, [])" class="btn">Clear Selection</button>
+        <!-- <button @click="data.stagePipelines.delete(pipeline.id)" class="btn">Delete Pipeline</button> -->
+
     </div>
 
-    <div v-if="dragAction.dragging && dragAction.toPipelineId === id && (dragAction.dragStage.fromPipelineId !== id || dragAction.dragStage.fromIndex !== 0)"
-        class="border-t border-2 w-[700px]" :ref="el => setDivider(el, 0)"></div>
+    <!-- dragAction.dragging && dragAction.toPipelineId === id && (dragAction.dragStage.fromPipelineId !== id || dragAction.dragStage.fromIndex !== 0) -->
+    <div 
+        :style="{ opacity: dragAction.dragging && dragAction.toPipelineId === id && dragAction.toStageIndex === 0 ? 1 : 0 }"
+        class="border-t border-2 w-full h-1" :ref="el => setDivider(el, 0)"></div>
 
     <template v-for="stage, i in stageIds.map(s => data.stages.get(s))">
-        <div v-if="stage" @pointerdown="detailStageId = stage.id">
-            <div class="bg-base-200/70 px-2 pb-2 rounded-lg my-4 drop-shadow relative w-[700px]"
-                @pointerdown="(e) => handleDragDown(e, i)" ref="stageWrappers" :style="dragAction.dragStage.id === stage.id && dragAction.dragging ? {
-                    position: 'absolute',
-                    left: `${dragAction.position.origin[0]}px`,
-                    top: `${dragAction.position.origin[1]}px`,
-                    transform: `translate3d(${dragAction.position.offset[0]}px, ${dragAction.position.offset[1]}px, 0px)`,
-                    zIndex: 5,
-                } : {}">
+        <div :id="`wrapper_${stage.id}`" class="grid grid-rows-[1fr_8px]" @pointerdown="(e) => handleDragDown(e, i)"
+            ref="stageWrappers" :style="dragAction.dragStage.id === stage.id && dragAction.dragging ? {
+                minHeight: `${stage.resizeHeight}px`,
+                minWidth: `${pipeline.resizeWidth}px`,
+                position: 'absolute',
+                left: `${dragAction.position.origin[0]}px`,
+                top: `${dragAction.position.origin[1]}px`,
+                transform: `translate3d(${dragAction.position.offset[0]}px, ${dragAction.position.offset[1]}px, 0px)`,
+                zIndex: 5,
+            } : { minHeight: `${stage.resizeHeight}px` }">
 
+            <div class="bg-base-200/70 relative my-8 flex flex-col pb-4">
+                <Stage :stage="stage" />
 
-                <div class="flex gap-2 items-center py-2">
-                    <!-- <span class="text-primary-content/80 text-3xl pb-1">•</span> -->
-                    {{ dragAction.dragging }}
-                    <span class="font-bold text-primary-content/60 text-xs">{{ i + 1 }}</span>
-                    <span class="font-bold text-primary-content/60 text-xs"> — </span>
-                    <span class="font-bold text-primary-content/60 text-xs">{{ stage.type }}</span>
-                    <span class="font-bold text-primary-content/60 text-xs">{{ stage.id }}</span>
-                    <span class="m-auto"></span>
+                <div id="resizeFrame" @pointerdown="(e) => handleResizeDown(e, stage.id)"
+                    class="bottom-0 right-0 absolute size-4 cursor-nwse-resize opacity-40 hover:opacity-70 transition-opacity"
+                    style="background: linear-gradient(135deg, transparent 0%, transparent 50%, currentColor 50%, currentColor 60%, transparent 60%, transparent 70%, currentColor 70%, currentColor 80%, transparent 80%); color: rgb(107 114 128);">
                 </div>
-                <div class="grow bg-base-100 rounded-sm " ref="stageComponents">
-                    <component :is="stageTypeMap[stage.type]" :id="stage.id" :key="stage.id" :stage="stage" />
-                </div>
-                <!-- <StageFilterDisplay :id="stage.id"/> -->
             </div>
-            <div v-if="dragAction.dragging && dragAction.toPipelineId === id && (dragAction.dragStage.fromPipelineId !== id || dragAction.dragStage.fromIndex !== i + 1)"
-                class="border-t border-2 my-8 " :ref="el => setDivider(el, i + 1)"></div>
+
+            <div :style="{ opacity: dragAction.dragging && dragAction.toPipelineId === id && dragAction.toStageIndex === i + 1 ? 1 : 0 }"
+                class="border-t border-2 my-8 w-full h-1" :ref="el => setDivider(el, i + 1)"></div>
+
         </div>
+
+
+
     </template>
 
     <div :class="`${hidden ? 'opacity-0' : null}`">
@@ -46,13 +50,11 @@
 </template>
 
 <script setup>
-//:seed="{ index: i, pipeline: pipeline, hidden: i === 0 || i === data.stagePipelines.size - 1 }"
-import { ref, watch, computed, provide, inject, useTemplateRef, toValue, onBeforeUpdate } from 'vue';
-
+import { ref, computed, provide, inject, useTemplateRef, toValue, onBeforeUpdate, toRaw } from 'vue';
 import { v4 as uuidv4 } from "uuid";
-import { stageTypeMap } from '@/stageTypeMap';
+import Stage from './Stage.vue';
 
-const { data, chooseStage, detailStageId, stageDrag } = inject("injectGlobalState")
+const { data, chooseStage, stageDrag, zoompinchRef, zoompinchTransform } = inject("injectGlobalState")
 const { id } = defineProps(['id'])
 
 const pipeline = computed({
@@ -67,14 +69,9 @@ const stageIds = computed({
     get: () => pipeline.value.stages,
     set: (val) => { pipeline.value.stages = val }
 })
-const selection = computed({
-    get: () => pipeline.value.selection,
-    set: (val) => { pipeline.value.selection = val }
-})
 
 
 const stageComponents = useTemplateRef("stageComponents")
-const stageWrappers = useTemplateRef("stageWrappers")
 const stageDividers = ref([])
 
 onBeforeUpdate(() => {
@@ -88,14 +85,13 @@ function setDivider(el, index) {
 const { dragAction, handleStageDragStart, handleStageDrag, handleStageDragEnd, } = stageDrag
 
 
+
 function handleDragDown(e, i) {
-    const isFrame = !stageComponents.value[i]?.contains(e.target)
-    if (isFrame) {
-        handleStageDragStart(stageIds.value[i], e)
-        e.preventDefault()
-        document.addEventListener("pointermove", handleDrag)
-        document.addEventListener("pointerup", handleDragUp)
-    }
+    if (e.target.closest('#stageComponent') !== null) return
+    handleStageDragStart(stageIds.value[i], e)
+    e.preventDefault()
+    document.addEventListener("pointermove", handleDrag)
+    document.addEventListener("pointerup", handleDragUp)
 }
 
 function determineActiveDivider(e) {
@@ -107,7 +103,7 @@ function determineActiveDivider(e) {
 
     if (min_index !== -1) {
         dragAction.value.toStageIndex = min_index
-        filteredDividers.forEach((e, i) => e.style.opacity = i === min_index ? 1 : 0.1)
+        //filteredDividers.forEach((e, i) => e.style.opacity = i === min_index ? 1 : 0.1)
     }
 
 }
@@ -131,6 +127,57 @@ function handleDragUp(e) {
 }
 
 
+const getInitResizeOption = () => ({
+    resizing: false,
+    resizeId: null,
+    startPosition: null,
+    offsetPosition: null,
+    bounds: null
+})
+
+const resizeAction = ref(getInitResizeOption())
+
+function handleResizeDown(e, id) {
+    e.preventDefault()
+    e.stopPropagation()
+
+    resizeAction.value.resizeId = id
+    resizeAction.value.resizing = true
+    resizeAction.value.startPosition = zoompinchRef.value.normalizeClientCoords(e.clientX, e.clientY)
+
+    const p = e.target.parentElement
+    resizeAction.value.bounds = [p.offsetWidth, p.offsetHeight]
+
+
+    document.addEventListener("pointermove", handleResize)
+    document.addEventListener("pointerup", handleResizeUp)
+}
+
+function handleResize(e) {
+    if (!resizeAction.value.resizing) return
+
+    const startPosition = resizeAction.value.startPosition
+    const currentPosition = zoompinchRef.value.normalizeClientCoords(e.clientX, e.clientY)
+    resizeAction.value.offsetPosition = [
+        currentPosition[0] - startPosition[0],
+        currentPosition[1] - startPosition[1]
+    ]
+
+    const stage = data.value.stages.get(resizeAction.value.resizeId)
+    stage.resizeHeight = resizeAction.value.offsetPosition[1] + resizeAction.value.bounds[1]
+    pipeline.value.resizeWidth = resizeAction.value.offsetPosition[0] + resizeAction.value.bounds[0]
+}
+
+function handleResizeUp(e) {
+    resizeAction.value = getInitResizeOption()
+
+    document.removeEventListener("pointermove", handleResize)
+    document.removeEventListener("pointerup", handleResizeUp)
+}
+
+
+
+
 function changeStageFilter(id, filter) {
     const index = stageIds.value.findIndex(e => e == id)
     for (let e of filter) {
@@ -142,17 +189,6 @@ function changeStageFilter(id, filter) {
 const cumulativeFilter = computed(() => {
     //TODO
     return []
-    let globalSet = new Set()
-    return stageIds.value.map(p => {
-        for (let { word, action } of p.filter) {
-            if (action === "ADD") {
-                globalSet.add(word)
-            } else if (action === "REMOVE") {
-                globalSet.delete(word)
-            }
-        }
-        return Array.from(globalSet)
-    })
 })
 
 function getCumulativeFilter(id) {
@@ -160,44 +196,23 @@ function getCumulativeFilter(id) {
     return cumulativeFilter.value[index] ?? []
 }
 
-provide('injectPipeline', {
+function getWordStyle(word) {
+    const selection = data.value.selectionGroups.get(pipeline.value.selectionGroupId)
+    const stopwords = data.value.stopwords
+    if (selection.includes(word) && stopwords.has(word)) return 'text-primary'
+    if (selection.includes(word)) return 'text-info'
+    if (stopwords.has(word)) return 'text-accent'
+    return ''
+}
+
+
+provide('injectPipelineState', {
     pipeline: stageIds,
-    selection,
     changeStageFilter,
     getCumulativeFilter,
-    changeSelection,
+
+    getWordStyle
 })
 
-
-function changeSelection(words, mode) {
-    switch (mode) {
-        case "addSelection":
-            for (let w of words) {
-                selection.value.add(w)
-            }
-            break;
-        case "removeSelection":
-            for (let w of words) {
-                selection.value.delete(w)
-            }
-            break;
-        case "replaceSelection":
-            selection.value = new Set(words)
-            break;
-        default:
-            break;
-    }
-}
-
-
-function findSimilarWords(word, stageIndex) {
-    const stage = {
-        id: uuidv4(),
-        type: "SimilarWords",
-        selected: word,
-        filter: [],
-    }
-    stageIds.value.splice(stageIndex + 1, 0, stage)
-}
 
 </script>

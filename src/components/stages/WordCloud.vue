@@ -1,5 +1,5 @@
 <template>
-    <svg ref="container" width="100%" height="100%">
+    <svg :id="id" class="absolute" ref="container" width="100%" height="100%">
         <Lasso v-bind="{ container, targets: zoomedPositions, lassoOptions }" />
     </svg>
 </template>
@@ -8,29 +8,42 @@
 import * as d3 from 'd3';
 import Lasso from '../Lasso.vue';
 import cloud from 'd3-cloud';
-import { computed, inject, markRaw, onMounted, onUnmounted, ref, useTemplateRef, watch } from 'vue';
+import { computed, inject, markRaw, nextTick, onMounted, onUnmounted, ref, useTemplateRef, watch, watchEffect } from 'vue';
 import useZoom from '../composables/useZoom';
+import { EDITMODES } from '@/helpers';
 
-const { data } = inject('injectGlobalState')
+const { data, handleWordContextMenu, requestDependencies } = inject('injectGlobalState')
 
 const { id } = defineProps(['id'])
 const container = useTemplateRef('container')
 
 const layout = ref(null)
 const layoutedWordcloud = ref(null)
+const filteredWordcount = computed(() => {
+    return requestDependencies.value['wordcount'].data.filter ?
+        requestDependencies.value['wordcount'].data.filter(w => true)
+        : []
+})
 
-const filteredWordcount = computed(() => data.value.corpus.word_count.filter(w => true))
 const max = computed(() => filteredWordcount.value.reduce((acc, w) => Math.max(acc, w.count), 0))
 const min = computed(() => filteredWordcount.value.reduce((acc, w) => Math.min(acc, w.count), Infinity))
 
-const scale = computed(() => d3.scalePow().domain([min.value, max.value < 500 ? max.value : 500]).range([16, 72]).clamp(true))
+const scale = computed(() => d3.scalePow().domain([min.value, max.value]).range([16, 72]).clamp(true))
 
 const resizeTimer = ref(null)
 const lazyWindowDimensions = ref(null)
 
 const stage = computed(() => data.value.stages.get(id))
+const selection = computed({
+    get: () => testGet(),
+    set: (val) => data.value.selectionGroups.set(data.value.stages.get(id).selectionGroupId, val)
+})
 
-watch([stage, () => data.value.stopwords], () => {
+function testGet() {
+    return data.value.selectionGroups.get(stage.value.selectionGroupId)
+}
+
+watch([stage, () => data.value.stopwords, selection], () => {
     applyColors()
 }, { deep: true })
 
@@ -42,19 +55,21 @@ watch(zoomTransform, (zoomVal) => {
 
 const lassoOptions = { onLassoEnd }
 function onLassoEnd(selected) {
-    console.log(selected.length, layoutedWordcloud.value.length)
-    console.log(selected)
     const s = layoutedWordcloud.value.filter((e, i) => selected[i]).map(e => e.word)
-    data.value.stages.get(id).selection = s
+    if (data.value.editorData.mainToolSelected === EDITMODES['LassoPlus'].name) {
+        selection.value = s
+    }
+    if (data.value.editorData.mainToolSelected === EDITMODES['LassoMinus'].name) {
+        selection.value = Array.from(new Set(selection.value).difference(new Set(s)))
+    }
 }
 
 function applyColors() {
-    const selection = stage.value.selection
     d3.select(container.value)
         .selectAll('text')
-        .classed('text-info', d => selection?.includes(d.word))
+        .classed('text-info', d => selection.value.includes(d.word))
         .classed('text-accent', d => data.value.stopwords.has(d.word))
-        .classed('text-primary', d => selection?.includes(d.word) && data.value.stopwords.has(d.word))
+        .classed('text-primary', d => selection.value.includes(d.word) && data.value.stopwords.has(d.word))
 }
 
 function applyZoom(zoomVal) {
@@ -67,19 +82,22 @@ function applyZoom(zoomVal) {
         .attr('transform', newTransform)
 }
 
-watch(lazyWindowDimensions, (newDimensions, oldDimensions) => {
+watch([filteredWordcount], () => {
+    if (!filteredWordcount.value) return
+    const newDimensions = [500, 500]
     if (!newDimensions || newDimensions.some(v => v === 0)) {
         console.log("Cloud dimensions are null or 0, skipping..")
         return
     }
-    if (oldDimensions && newDimensions.every((d, i) => d === oldDimensions[i])) return
+    //if (oldDimensions && newDimensions.every((d, i) => d === oldDimensions[i])) return
 
-    const maxWords = estimateMaxWords()
+    //const maxWords = estimateMaxWords()
+    const maxWords = 100
     //TODO workaround for shared state, still draws every wordcloud new when changing state...
     const wordsToDraw = filteredWordcount.value.slice(0, maxWords).map(w => markRaw({ ...w }))
 
     const thisLayout = cloud()
-        .size(lazyWindowDimensions.value)
+        .size(newDimensions)
         .words(wordsToDraw)
         .text((d) => d.word)
         .rotate(0)
@@ -88,13 +106,16 @@ watch(lazyWindowDimensions, (newDimensions, oldDimensions) => {
         .random(() => 0.5)
         .on("end", (val) => {
             layoutedWordcloud.value = val
+            nextTick(() => {
+                drawSvg(val)
+            })
         })
 
     layout.value = thisLayout
     layout.value.start()
-})
+}, { immediate: true })
 
-watch(layoutedWordcloud, (val) => {
+function drawSvg() {
     d3.select(container.value)
         .select("g").remove()
     d3.select(container.value)
@@ -102,7 +123,7 @@ watch(layoutedWordcloud, (val) => {
         //should be same as dimensions.value
         //.attr("transform", `translate(${layout.value.size()[0] / 2},${layout.value.size()[1] / 2})`)
         .selectAll("text")
-        .data(val)
+        .data(layoutedWordcloud.value)
         .join("text")
         .style("font-size", d => `${d.size}px`)
         .style("font-family", "Impact")
@@ -112,18 +133,19 @@ watch(layoutedWordcloud, (val) => {
         .attr('x', d => d.x + layout.value.size()[0] / 2)
         .attr('y', d => d.y + layout.value.size()[1] / 2)
         .text(d => d.word)
+        .on('contextmenu', (e, d) => { handleWordContextMenu(e, [d.word]) })
         .attr('fill', 'currentColor');
 
     applyZoom(zoomTransform.value)
     applyColors(stage.value)
-}, { deep: true })
+}
 
 
 
 
 
 function estimateMaxWords() {
-    const containerArea = lazyWindowDimensions.value[0] * lazyWindowDimensions.value[1]
+    const containerArea = window.innerWidth * window.innerHeight
 
     // Conservative packing efficiency — word clouds rarely exceed 30–40% fill
     const PACKING_EFFICIENCY = 0.8;
@@ -149,45 +171,30 @@ function estimateMaxWords() {
     return count;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 // Apply dimensions changes in a lazy way
 
 
-function handleResize(e) {
-    if (!container.value) {
-        return
-    }
-    if (resizeTimer.value) clearTimeout(resizeTimer.value);
-    resizeTimer.value = setTimeout(() => {
-        lazyWindowDimensions.value = [
-            container.value.clientWidth,
-            container.value.clientHeight,
-        ]
-    }, 200)
-}
-
-onMounted(async () => {
-    window.addEventListener("resize", handleResize)
-    handleResize()
-})
-onUnmounted(() => {
-    window.removeEventListener("resize", handleResize)
-    clearTimeout(resizeTimer)
-})
-
-
+//function handleResize(e) {
+//    if (!container.value) {
+//        return
+//    }
+//    if (resizeTimer.value) clearTimeout(resizeTimer.value);
+//    resizeTimer.value = setTimeout(() => {
+//        lazyWindowDimensions.value = [
+//            container.value.clientWidth,
+//            container.value.clientHeight,
+//        ]
+//    }, 200)
+//}
+//
+//onMounted(async () => {
+//    window.addEventListener("resize", handleResize)
+//    handleResize()
+//})
+//onUnmounted(() => {
+//    window.removeEventListener("resize", handleResize)
+//    clearTimeout(resizeTimer)
+//})
 
 
 </script>

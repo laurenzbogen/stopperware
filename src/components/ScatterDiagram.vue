@@ -14,7 +14,7 @@ const MARGIN_X = 100
 const MARGIN_Y = 100
 
 const { id, scatterData, lassoOptions } = defineProps(['id', 'scatterData', 'lassoOptions'])
-const { data, updateStageState } = inject('injectGlobalState')
+const { handleWordContextMenu } = inject('injectGlobalState')
 
 const container = useTemplateRef("container")
 defineExpose({ container, zoomIntoView })
@@ -37,7 +37,7 @@ const scales = computed(() => {
 })
 
 
-const scaledPositions = computed(() => scatterData.embedding.map(d => {
+const scaledPositions = computed(() => scatterData.positions.map(d => {
     if (scales.value === null) return null
     const [xScale, yScale] = scales.value
 
@@ -45,18 +45,38 @@ const scaledPositions = computed(() => scatterData.embedding.map(d => {
 }))
 
 const { zoomedPositions, zoomTransform, targetZoom, resetZoom } = useZoom(id, container, scaledPositions)
+
+let scheduledZoom = false
+let scheduledOcclusion = false
 watch(zoomTransform, (zoomVal) => {
     const { k, x, y } = zoomVal.transform
     const newTransform = new d3.ZoomTransform(k, x, y)
 
-    d3.select(container.value)
-        .selectAll('text')
-        .attr('transform', newTransform)
-        .attr('font-size', 14 / k)
+    if (!scheduledZoom) {
+        scheduledZoom = true
+        requestAnimationFrame(() => {
+            d3.select(container.value)
+                .selectAll('g')
+                .attr('transform', newTransform)
+                .attr('font-size', 14 / k)
+                .select('circle')
+                .attr('r', 1/k)
+            scheduledZoom = false
+        })
+    }
+
+
+    if (!scheduledOcclusion) {
+        scheduledOcclusion = true
+        requestIdleCallback(() => {
+            d3.select(container.value).call(occlusion)
+            scheduledOcclusion = false
+        })
+    }
 })
 
 function zoomIntoView(words) {
-    const positions = scatterData.embedding.map((s, i) => {
+    const positions = scatterData.positions.map((s, i) => {
         if (words.includes(s.word)) {
             return scaledPositions.value[i]
         }
@@ -73,9 +93,6 @@ function zoomIntoView(words) {
     const minY = positions.reduce((acc, p) => Math.min(acc, p[1]), Infinity)
     const maxX = positions.reduce((acc, p) => Math.max(acc, p[0]), -Infinity)
     const maxY = positions.reduce((acc, p) => Math.max(acc, p[1]), -Infinity)
-
-    if (minX === Infinity) console.log('a', positions)
-
 
     const center = [minX + (maxX - minX) / 2, minY + (maxY - minY) / 2]
     const bounds = [maxX - minX, maxY - minY]
@@ -97,7 +114,7 @@ onMounted(() => {
     // Filter without mutating the source
     //const filtered = data.data.filter(d => !currentFilter.value.includes(d.word))
     // TODO hack
-    const filtered = scatterData.embedding
+    const filtered = scatterData.positions
 
     const groups = d3.select(container.value)
         .selectAll('g')
@@ -110,8 +127,7 @@ onMounted(() => {
                 g.classed('scatter_point', true)
 
                 g.append('circle')
-                    .attr('r', 1)
-                    .attr('fill', 'none')
+                    .attr('fill', 'gray')
                     .attr('cx', d => xScale(d.x) + MARGIN_X / 2)
                     .attr('cy', d => yScale(d.y) + MARGIN_Y / 2)
 
@@ -121,14 +137,62 @@ onMounted(() => {
                     .attr('dominant-baseline', 'middle')
                     .attr('x', d => xScale(d.x) + MARGIN_X / 2)
                     .attr('y', d => yScale(d.y) + MARGIN_Y / 2)
-                    .attr('font-size', 12)
+                    //Dont set font-size here
+                    //.attr('font-size', 12)
                     .attr('fill', 'currentColor')
+                    .on('contextmenu', (e, d) => { handleWordContextMenu(e, [d.word]) })
 
                 return g
             },
             update => update,
             exit => exit.remove()
         )
+
+    d3.select(container.value).call(occlusion)
+
+
 })
 
+
+function occlusion(svg, against = "g") {
+    //d3
+    //.sort(svg.selectAll(against), (node) => +node.getAttribute("data-priority"))
+    //.reverse()
+    const nodes = svg.selectAll(against)
+        .nodes()
+        .map((node) => {
+            const { x, y, width, height } = node.getBoundingClientRect();
+            return { node, x, y, width, height };
+        });
+
+    const visible = [];
+    for (const d of nodes) {
+        const occluded = visible.some((e) => intersectRect(d, e));
+        d3.select(d.node).classed("occluded", occluded);
+        if (!occluded) visible.push(d);
+    }
+    return visible;
+}
+
+function intersectRect(a, b) {
+    return !(
+        a.x + a.width < b.x ||
+        b.x + b.width < a.x ||
+        a.y + a.height < b.y ||
+        b.y + b.height < a.y
+    );
+}
+
 </script>
+
+<style>
+.occluded text {
+    opacity: 0.05;
+}
+circle {
+    opacity: 0
+}
+.occluded circle {
+    opacity: 0
+}
+</style>

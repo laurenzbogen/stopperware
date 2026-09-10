@@ -15,7 +15,7 @@ import { useSelectionStyle } from '../util/util';
 
 const { id } = defineProps(['id'])
 const container = useTemplateRef("container")
-const { pipeline, getCumulativeFilter } = inject("injectPipeline")
+const { pipeline, getCumulativeFilter } = inject("injectPipelineState")
 const { onWordContextMenu } = inject('injectGlobalState')
 const { getters: { get_filtered_wc } } = useData()
 

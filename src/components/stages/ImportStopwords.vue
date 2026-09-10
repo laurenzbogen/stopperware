@@ -1,164 +1,93 @@
 <template>
     <div class="relative h-[230px]">
         <div v-bind="getRootProps()"
-            :class="`absolute top-0 left-0 bottom-0 right-0 ${isDragActive ? 'bg-secondary/20' : 'bg-none'} flex flex-col justify-between`">
+            :class="`absolute top-0 left-0 bottom-0 right-0 ${isDragActive ? 'bg-secondary/20' : 'bg-none'} p-2`">
+            <div v-if="!file" class="size-full flex justify-center items-center">
+                <p class="font-bold">Drag .txt file to use stopwords</p>
+            </div>
 
-            <div class="w-full flex flex-row justify-between">
-                <div class="flex-1">
-                    <div v-for="f in files">
-                        <div>
-                            <span :class="`mr-2 ${f[1].active ? null : 'opacity-50 line-through'}`"> {{ f[1].name }}
-                            </span>
-                            <!-- <span class="mr-2"> {{ f[1].active }} </span> -->
-                            <button class="btn" @click="deleteFile(f[0])">-</button>
-                            <button class="btn" @click="deleteFileWithWords(f[0])">tr</button>
-                            <button class="btn" v-if="!f[1].active" @click="restoreFile(f[0])">r</button>
-                        </div>
+            <template v-else>
+                <p class="my-2 font-bold text-sm">{{ file.name }}</p>
+                <p class="my-2">List of <span class="font-bold text-accent">{{ file.content.length }}</span> Stopword{{
+                    file.content.length !== 1 ? 's' : '' }}</p>
+                <div class="my-6 flex justify-around">
+                    <div>
+                        <progress class="progress w-56" :value="corpusPercentage" max="100"></progress>
+                        <p class="text-[12px]"><span class="font-bold">{{ Math.round(corpusPercentage) }}%</span> of
+                            List are in Corpus</p>
                     </div>
-
-
+                    <div>
+                        <progress class="progress progress-accent w-56" :value="stopwordsPercentage"
+                            max="100"></progress>
+                        <p class="text-[12px]"><span class="font-bold text-accent">{{ Math.round(stopwordsPercentage)
+                        }}%</span> of List are Stopwords</p>
+                    </div>
                 </div>
-                <textarea v-model="textareaValue" name="" id=""></textarea>
 
-            </div>
 
-            <div>
-                <button class="btn">Select</button>
-                <button class="btn">Stop</button>
+                <SmallButton @click="setOperationStopwords(new Set(file.content), 'union')">
+                    <SquaresUnite />
+                </SmallButton>
+                <SmallButton @click="setOperationStopwords(new Set(file.content), 'difference')">
+                    <SquaresSubtract />
+                </SmallButton>
+                <SmallButton @click="setOperationStopwords(new Set(file.content), 'intersection')">
+                    <SquaresIntersect />
+                </SmallButton>
 
-            </div>
-
+            </template>
 
         </div>
     </div>
+
 </template>
-
 <script setup>
-import { computed, inject, onMounted, ref, watch } from 'vue';
+import SmallButton from '../design/SmallButton.vue';
+import { SquaresUnite } from '@lucide/vue';
+import { SquaresSubtract } from '@lucide/vue';
+import { SquaresIntersect } from '@lucide/vue';
+
+import { hashString } from "@/helpers";
+import { computed, inject, ref, watch } from "vue";
 import { useDropzone } from "vue3-dropzone";
-import { v4 as uuidv4 } from "uuid";
-import superjson, { SuperJSON } from 'superjson';
+const { getRootProps, isDragAccept, isDragActive, ...rest } = useDropzone({ onDrop });
 
-const { updateStageState, data } = inject('injectGlobalState')
-const props = defineProps(["id", "stage"])
-const { id, stage } = props
 
-const files = ref(new Map())
-const textareaValue = ref('')
-const areaStopwords = computed(() => textareaValue.value.split('\n').filter(w => w !== ""))
-
-const state = computed(() => ({
-    files: files.value,
-    areaStopwords: areaStopwords.value
-}))
-
-const stagesStateHistory = computed(() => {
-    const rawData = data.value.stagesStateHistory.get(id)
-    return rawData ? SuperJSON.parse(rawData) : null
+const { updateStageState, data, setOperationStopwords, globalDropzoneEnabled, requestDependencies } = inject('injectGlobalState')
+watch(isDragActive, (val, oldVal) => {
+    if (val === true && oldVal === false) {
+        globalDropzoneEnabled.value = false
+    }
+    if (val === false && oldVal === true) {
+        setTimeout(() => {
+            globalDropzoneEnabled.value = true
+        }, 200)
+    }
 })
 
-watch(
-    stagesStateHistory,
-    (newState) => {
-        if (!newState ) return //todo placeholder
+const { id, stage } = defineProps(["id", "stage"])
 
-        files.value = newState.files
-        areaStopwords.value = newState.areaStopwords
-        textareaValue.value = newState.areaStopwords.join('\n')
-    }, { immediate: true })
+const file = ref(data.value.stagesStateHistory.get(id)?.file)
 
+const state = computed(() => ({
+    file: file.value
+}))
 
-watch(
-    () => [state.value.areaStopwords.length, state.value.files.size],
-    ([newStopLen, newFilesSize], [oldStopLen, oldFilesSize]) => {
-        if (newStopLen !== oldStopLen || newFilesSize !== oldFilesSize) {
-            updateStageState(id, state.value, true)
-        }
-    }
-)
+const corpusWords = computed(() => new Set(requestDependencies.value['wordcount'].data.map(w => w.word)))
+const corpusPercentage = computed(() => (file.value.content.reduce((count, item) => count + (corpusWords.value.has(item) ? 1 : 0), 0) / file.value.content.length) * 100)
+const stopwordsPercentage = computed(() => (file.value.content.reduce((count, item) => count + (data.value.stopwords.has(item) ? 1 : 0), 0) / file.value.content.length) * 100)
 
-//watch(state, (val, oldVal) => {
-//    console.log(val.files, oldVal.files)
-//    if (
-//        val.areaStopwords.length !== oldVal.areaStopwords.length
-//        || val.files.size !== oldVal.files.size
-//    ) {
-//        console.log('persist')
-//    }
-//}, { deep: true })
-
-
-watch(areaStopwords, (val) => {
-    outer: for (let f of files.value) {
-        const [key, value] = f
-        for (const word of value.content) {
-            if (!val.includes(word)) {
-                value.active = false
-                continue outer
-            }
-        }
-        value.active = true
-    }
-}, { immediate: true })
-
-function addNewContent(content) {
-    let areaSet = new Set(textareaValue.value.split('\n').filter(w => w !== ""))
-    for (const w of content.content) {
-        if (w === "") continue
-        areaSet.add(w)
-    }
-
-    textareaValue.value = [...areaSet.values()].join('\n')
-}
-
-function deleteFileWithWords(id) {
-    const words = files.value.get(id).content
-    let areaArray = textareaValue.value.split('\n')
-    for (let w of words) {
-        const index = areaArray.findIndex(aW => aW === w)
-        if (index === -1) continue
-        areaArray.splice(index, 1)
-    }
-    textareaValue.value = areaArray.join('\n')
-    files.value.delete(id)
-}
-
-function deleteFile(id) {
-    console.log(files.value.size)
-    files.value.delete(id)
-    console.log(files.value.size)
-}
-
-function restoreFile(id) {
-    let areaSet = new Set(areaStopwords.value)
-    const content = files.value.get(id)
-    if (content === undefined) throw new Error('Couldnt find File to be restored')
-    for (const w of content.content) {
-        if (w === "") continue
-        areaSet.add(w)
-    }
-
-    textareaValue.value = [...areaSet.values()].join('\n')
-}
+watch(state, (newState) => {
+    updateStageState(id, newState, true)
+}, { deep: true })
 
 async function onDrop(acceptFiles, rejectReasons) {
     for (let f of acceptFiles) {
         const t = await f.text()
         const id = await hashString(t)
-        const newContent = { content: t.trim().split('\n'), name: f.name, active: true }
-        addNewContent(newContent)
-        files.value.set(id, newContent)
+        const newFile = { content: t.trim().split('\n'), name: f.name, active: true }
+        file.value = newFile
     }
-}
-const { getRootProps, getInputProps, isDragAccept, isDragActive, ...rest } = useDropzone({ onDrop });
-
-
-async function hashString(str) {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(str);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 </script>

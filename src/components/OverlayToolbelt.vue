@@ -18,7 +18,7 @@ const { data } = inject('injectGlobalState')
 const { editorData: { mainToolSelected } } = data.value
 
 const buttons = [
-    EDITMODES['Select'], EDITMODES['Move'], EDITMODES['Lasso'], EDITMODES['Placeholder'], EDITMODES['Placeholder'], EDITMODES['Placeholder']
+    EDITMODES['Select'], EDITMODES['Move'], EDITMODES['LassoPlus'], EDITMODES['LassoMinus'], EDITMODES['Placeholder'], EDITMODES['Placeholder']
 ]
 
 function toolbeltButtonIsActive(name) {
