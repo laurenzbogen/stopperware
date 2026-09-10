@@ -22,7 +22,6 @@
     "uuid": "^14.0.0",
     "uuidv4": "^6.2.13",
     "vue": "^3.5.32",
-    "vue-resizable": "^2.1.7",
     "vue3-dropzone": "^2.2.1"
   },
   "devDependencies": {
