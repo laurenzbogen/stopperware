@@ -1,6 +1,6 @@
 <template>
     <p class="text-[12px] font-bold text-neutral/60"> {{ similarKey }} </p>
-    <form @submit="data.stagesStateNoHistory.get(id).similarKey = inputVal" action="#">
+    <form @submit.prevent="stagesStateNoHistory.get(id).similarKey = inputVal">
         <input class="input rounded-sm" v-model="inputVal" type="text">
     </form>
 </template>
@@ -8,24 +8,30 @@
 import { detailComponents } from '@/stageTypeMap';
 import { computed, inject, ref, watch } from 'vue';
 
-const { data, deleteStage, setOperationStopwords, requestDependencies } = inject('injectGlobalState')
+import { useDataStore } from '@/components/composables/useDataStore';
+import { storeToRefs } from 'pinia';
+
+const dataStore = useDataStore()
+const { } = dataStore
+const { stages, stagesStateNoHistory, stagesStateHistory } = storeToRefs(dataStore)
+
 const { id } = defineProps(['id'])
-const detailStage = computed(() => data.value.stages.get(id))
+const detailStage = computed(() => stages.get(id))
 const detailComponent = computed(() => detailComponents[detailStage.value.type])
 
 const inputVal = ref('')
 
 
 const state = computed(() => {
-    const noHistory = data.value.stagesStateNoHistory.get(id)
-    const history = data.value.stagesStateHistory.get(id)
+    const noHistory = stagesStateNoHistory.value.get(id)
+    const history = stagesStateHistory.value.get(id)
     return {
         ...noHistory,
         ...history,
     }
 })
 
-const similarKey = computed(() => data.value.stagesStateNoHistory.get(id).similarKey)
+const similarKey = computed(() => stagesStateNoHistory.value.get(id).similarKey)
 
 
 </script>

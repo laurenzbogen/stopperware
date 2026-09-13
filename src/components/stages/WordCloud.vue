@@ -12,7 +12,14 @@ import { computed, inject, markRaw, nextTick, onMounted, onUnmounted, ref, useTe
 import useZoom from '../composables/useZoom';
 import { EDITMODES } from '@/helpers';
 
-const { data, handleWordContextMenu, requestDependencies } = inject('injectGlobalState')
+import { useDataStore } from '@/components/composables/useDataStore';
+import { storeToRefs } from 'pinia';
+const dataStore = useDataStore()
+const { } = dataStore
+const { stages, selectionGroups, stopwords, editorData } = storeToRefs(dataStore)
+
+const { handleWordContextMenu, requestDependencies } = inject('injectGlobalState')
+const { getPipelineExclude } = inject('injectPipelineState')
 
 const { id } = defineProps(['id'])
 const container = useTemplateRef('container')
@@ -20,9 +27,9 @@ const container = useTemplateRef('container')
 const layout = ref(null)
 const layoutedWordcloud = ref(null)
 const filteredWordcount = computed(() => {
-    return requestDependencies.value['wordcount'].data.filter ?
-        requestDependencies.value['wordcount'].data.filter(w => true)
-        : []
+    const wordcount = requestDependencies.value['wordcount'].data
+    const exclude = getPipelineExclude(wordcount.map(w => w.word))
+    return wordcount.filter((w, i) => exclude[i])
 })
 
 const max = computed(() => filteredWordcount.value.reduce((acc, w) => Math.max(acc, w.count), 0))
@@ -30,20 +37,17 @@ const min = computed(() => filteredWordcount.value.reduce((acc, w) => Math.min(a
 
 const scale = computed(() => d3.scalePow().domain([min.value, max.value]).range([16, 72]).clamp(true))
 
-const resizeTimer = ref(null)
-const lazyWindowDimensions = ref(null)
-
-const stage = computed(() => data.value.stages.get(id))
+const stage = computed(() => stages.value.get(id))
 const selection = computed({
     get: () => testGet(),
-    set: (val) => data.value.selectionGroups.set(data.value.stages.get(id).selectionGroupId, val)
+    set: (val) => selectionGroups.value.set(stages.value.get(id).selectionGroupId, val)
 })
 
 function testGet() {
-    return data.value.selectionGroups.get(stage.value.selectionGroupId)
+    return selectionGroups.value.get(stage.value.selectionGroupId)
 }
 
-watch([stage, () => data.value.stopwords, selection], () => {
+watch([stage, stopwords, selection], () => {
     applyColors()
 }, { deep: true })
 
@@ -56,10 +60,10 @@ watch(zoomTransform, (zoomVal) => {
 const lassoOptions = { onLassoEnd }
 function onLassoEnd(selected) {
     const s = layoutedWordcloud.value.filter((e, i) => selected[i]).map(e => e.word)
-    if (data.value.editorData.mainToolSelected === EDITMODES['LassoPlus'].name) {
+    if (editorData.value.mainToolSelected === EDITMODES['LassoPlus'].name) {
         selection.value = s
     }
-    if (data.value.editorData.mainToolSelected === EDITMODES['LassoMinus'].name) {
+    if (editorData.value.mainToolSelected === EDITMODES['LassoMinus'].name) {
         selection.value = Array.from(new Set(selection.value).difference(new Set(s)))
     }
 }
@@ -68,8 +72,8 @@ function applyColors() {
     d3.select(container.value)
         .selectAll('text')
         .classed('text-info', d => selection.value.includes(d.word))
-        .classed('text-accent', d => data.value.stopwords.has(d.word))
-        .classed('text-primary', d => selection.value.includes(d.word) && data.value.stopwords.has(d.word))
+        .classed('text-accent', d => stopwords.value.has(d.word))
+        .classed('text-primary', d => selection.value.includes(d.word) && stopwords.value.has(d.word))
 }
 
 function applyZoom(zoomVal) {
@@ -139,62 +143,6 @@ function drawSvg() {
     applyZoom(zoomTransform.value)
     applyColors(stage.value)
 }
-
-
-
-
-
-function estimateMaxWords() {
-    const containerArea = window.innerWidth * window.innerHeight
-
-    // Conservative packing efficiency — word clouds rarely exceed 30–40% fill
-    const PACKING_EFFICIENCY = 0.8;
-    const availableArea = containerArea * PACKING_EFFICIENCY;
-
-    const CHAR_WIDTH_RATIO = 0.6; // avg char width as fraction of font size
-    const PADDING = 4;
-
-    let usedArea = 0;
-    let count = 0;
-
-    for (const d of filteredWordcount.value) {
-        const fontSize = scale.value(d.count);
-        const wordWidth = d.word.length * fontSize * CHAR_WIDTH_RATIO + PADDING * 2;
-        const wordHeight = fontSize + PADDING * 2;
-        const wordArea = wordWidth * wordHeight;
-
-        usedArea += wordArea;
-        if (usedArea > availableArea) break;
-        count++;
-    }
-
-    return count;
-}
-
-// Apply dimensions changes in a lazy way
-
-
-//function handleResize(e) {
-//    if (!container.value) {
-//        return
-//    }
-//    if (resizeTimer.value) clearTimeout(resizeTimer.value);
-//    resizeTimer.value = setTimeout(() => {
-//        lazyWindowDimensions.value = [
-//            container.value.clientWidth,
-//            container.value.clientHeight,
-//        ]
-//    }, 200)
-//}
-//
-//onMounted(async () => {
-//    window.addEventListener("resize", handleResize)
-//    handleResize()
-//})
-//onUnmounted(() => {
-//    window.removeEventListener("resize", handleResize)
-//    clearTimeout(resizeTimer)
-//})
 
 
 </script>

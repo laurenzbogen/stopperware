@@ -17,6 +17,8 @@
     "d3-cloud": "^1.2.9",
     "dropzone": "^6.0.0-beta.2",
     "fuse.js": "^7.4.2",
+    "pinia": "^4.0.3",
+    "pinia-plugin-persistedstate": "^4.7.1",
     "superjson": "^2.2.6",
     "universal-cookie": "^7.2.2",
     "uuid": "^14.0.0",

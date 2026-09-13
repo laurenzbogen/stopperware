@@ -1,31 +1,29 @@
 <template>
-    <CorpusPicker :enabled="globalDropzoneEnabled"/>
+    <CorpusPicker :enabled="globalDropzoneEnabled" />
 
     <div id="app" class="w-screen h-screen ">
         <zoompinch ref="zoompinchRef" v-model:transform="zoompinchTransform"
             :offset="{ top: 300, right: 0, bottom: 0, left: 0 }" :min-scale="0.1" :max-scale="4" :clamp-bounds="false"
             :rotation="false" :zoom-speed="1" :translate-speed="1" :zoom-speed-apple-trackpad="1"
-            :translate-speed-apple-trackpad="1" :mouse="data.editorData?.mainToolSelected === EDITMODES['Move'].name"
+            :translate-speed-apple-trackpad="1" :mouse="editorData?.mainToolSelected === EDITMODES['Move'].name"
             :wheel="true" :touch="true" :gesture="true">
 
             <div class="min-w-screen h-screen relative" ref="main-wrapper" id="main">
                 <div id="content_wrapper" ref="content-wrapper" class="flex gap-32">
                     <template :key="pipeline.id" v-for="(pipeline, i) in orderedPipelines">
-                        <div :style="{ minWidth: `${pipeline.resizeWidth}px`}"
-                            ref="pipelineWrappers"
-                            :class="`flex-none ${pipeline.stages.includes(data.editorData.detailStageId) ? 'bg-neutral-100/70' : ''}`"
+                        <div :style="{ minWidth: `${pipeline.resizeWidth}px` }" ref="pipelineWrappers"
+                            :class="`flex-none ${pipeline.stages.includes(editorData.detailStageId) ? 'bg-neutral-100/70' : ''}`"
                             :id="pipeline.id">
                             <StagePipeline :id="pipeline.id" ref="pipelineComponents" :key="pipeline.id" />
                         </div>
 
-                        <div v-if="i == data.stagePipelines.size - 2" class="-mr-44">
-                            <SmallButton @click="addNewPipeline()">
+                        <div v-if="i == stagePipelines.size - 2" class="-mr-44">
+                            <SmallButton @click="addPipeline()">
                                 <Plus class="w-6 h-6 relative z-50" />
                             </SmallButton>
                         </div>
 
                     </template>
-
                 </div>
             </div>
 
@@ -38,7 +36,7 @@
             </div>
             <div
                 class="w-60 h-screen bg-neutral-content border-l-3 border-base-200/30 pointer-events-auto p-4 z-50 overflow-y-scroll">
-                <OverlayDetailStage />
+                <OverlayDetailStage v-if="editorData.detailStageId" />
             </div>
 
             <div class="pointer-events-auto fixed left-1/2 bottom-20 -translate-x-1/2 z-100">
@@ -58,7 +56,6 @@
 import { Zoompinch } from "@zoompinch/vue";
 import { ref, provide, computed, useTemplateRef, onMounted, watch } from "vue";
 import CorpusPicker from "@/components/CorpusPicker.vue";
-import { useData } from "./components/composables/useData";
 import StagePipeline from "./components/StagePipeline.vue";
 import StagePicker from "./components/StagePicker.vue";
 import ContextMenu from './components/ContextMenu.vue';
@@ -68,15 +65,20 @@ import OverlayToolbelt from "./components/OverlayToolbelt.vue";
 import OverlayDetailStage from "./components/OverlayDetailStage.vue"; import SmallButton from "./components/design/SmallButton.vue";
 import useRequestData from "./components/composables/useRequestData";
 import OverlayOverviewStage from "./components/OverlayOverviewStage.vue";
+import { useKeyStore } from "@/components/composables/useKeyStore";
 
 
+
+import { useDataStore } from '@/components/composables/useDataStore';
+import { storeToRefs } from 'pinia';
+const dataStore = useDataStore()
+const { addPipeline, addStage, moveStage } = dataStore
+const { stagePipelines, stages, stopwords, editorData } = storeToRefs(dataStore)
 
 const contextMenuOptions = ref({
     selection: [], x: 0, y: 0, show: false,
 })
 
-
-const contentWrapper = useTemplateRef('content-wrapper')
 const mainWrapper = useTemplateRef('main-wrapper')
 const pipelineWrappers = useTemplateRef('pipelineWrappers')
 const pipelineComponents = useTemplateRef('pipelineComponents')
@@ -91,26 +93,20 @@ const handleScroll = (e) => {
     t.value -= e.deltaY / 1.5
 }
 
+const { keybinds } = storeToRefs(useKeyStore())
 onMounted(() => {
+    keybinds.value.push(['<C-a>', () => stages.value.get(editorData.value.detailStageId).pipeline])
     mainWrapper.value.addEventListener("wheel", handleScroll, { passive: false })
 })
 
-const managedData = useData()
 const requestData = useRequestData()
-const { data, addStage } = managedData
-const orderedPipelines = computed(() => [...data.value.stagePipelines.values()].sort((a, b) => a.position - b.position))
 
 
-
-const stopwords = computed(() => data.value?.stopwords)
-const percentage = computed(() => stopwords.value.size / data.value?.corpus.word_count.length * 100)
-const editMode = ref('MOVE')
-
+const orderedPipelines = computed(() => Array.from(stagePipelines.value.values()).sort((a, b) => a.position - b.position))
 const picker = useTemplateRef("pickerModalComponent")
 
 function onPickerSelect(stageType, pipelineId) {
     addStage(stageType, pipelineId)
-    //data.value.stagePipelines.get(stage.pipeline).stages.splice(stage.index, 0, stage)
 }
 
 
@@ -150,9 +146,8 @@ function handleStageDragStart(stageId, e) {
     dragAction.value.position.origin = zoompinchRef.value.normalizeClientCoords(bbox.x, bbox.y)
 
     dragAction.value.dragStage.id = stageId
-    const pipelines = data.value.stagePipelines
 
-    const activePipeline = [...pipelines.values()].find(e => e.stages.some(s => s === stageId))
+    const activePipeline = [...stagePipelines.value.values()].find(e => e.stages.some(s => s === stageId))
     const fromIndex = activePipeline.stages.findIndex(e => e === stageId)
 
     dragAction.value.dragStage.fromIndex = fromIndex
@@ -196,49 +191,10 @@ function handleStageDrag(e) {
 
 function handleStageDragEnd() {
     if (dragAction.value.dragging) {
-        const fromPipelineId = dragAction.value.dragStage.fromPipelineId
+        const stageId = dragAction.value.dragStage.id
         const toPipelineId = dragAction.value.toPipelineId
-        const stageId = data.value.stagePipelines.get(fromPipelineId)
-            .stages.splice(dragAction.value.dragStage.fromIndex, 1)[0]
-
-        data.value.stages.get(stageId).selectionGroupId = data.value.stagePipelines.get(toPipelineId).selectionGroupId
-        data.value.stages.get(stageId).pipeline = toPipelineId
-
-        data.value.stagePipelines.get(toPipelineId)
-            .stages.splice(dragAction.value.toStageIndex, 0, stageId)
-
-
-        // do in this order to preserve indeces
-        // add hidden last pipeline
-        if (data.value.stagePipelines.get(toPipelineId).position === data.value.stagePipelines.size - 1) {
-            //data.value.stagePipelines.push(getInitializedPipeline())
-            const newPipeline = getInitializedPipeline(data.value.stagePipelines.size)
-            data.value.selectionGroups.set(newPipeline.selectionGroupId, [])
-            data.value.stagePipelines.set(newPipeline.id, newPipeline)
-        }
-
-        // remove pipeline if empty
-        if (data.value.stagePipelines.get(fromPipelineId).stages.length === 0) {
-            const position = data.value.stagePipelines.get(fromPipelineId).position
-            for (let pipeline of data.value.stagePipelines.values()) {
-                if (pipeline.position > position) {
-                    pipeline.position -= 1
-                }
-            }
-            data.value.stagePipelines.delete(fromPipelineId)
-        }
-
-        // add hidden first pipeline
-        if (data.value.stagePipelines.get(toPipelineId).position === 0) {
-            const newPipeline = getInitializedPipeline(0)
-            for (const pipeline of data.value.stagePipelines.values()) {
-                pipeline.position += 1
-            }
-            data.value.selectionGroups.set(newPipeline.selectionGroupId, [])
-            data.value.stagePipelines.set(newPipeline.id, newPipeline)
-        }
-
-
+        const toPosition = dragAction.value.toStageIndex
+        moveStage(stageId, toPipelineId, toPosition)
     }
 
     dragAction.value = getInitDragOptions()
@@ -262,7 +218,6 @@ watch(zoompinchTransform, () => {
     }, COOLDOWN_MS)
 }, { deep: true })
 
-
 function handleWordContextMenu(e, word) {
     e.preventDefault()
     contextMenuOptions.value = {
@@ -270,16 +225,12 @@ function handleWordContextMenu(e, word) {
     }
 }
 
-
-provide('injectGlobalState', {
-    ...managedData,
+const globalState = {
     ...requestData,
-    stopwords,
     chooseStage: (pipelineInfo) => picker.value?.open(pipelineInfo),
 
     contextMenuOptions,
 
-    editMode,
     zoompinchRef,
     zoompinchTransform,
     zoomIsGesturing,
@@ -292,14 +243,9 @@ provide('injectGlobalState', {
 
     handleWordContextMenu,
     globalDropzoneEnabled,
-})
-
-
-
-function addNewPipeline() {
-    const size = data.value.stagePipelines.size
-    const pipeline = getInitializedPipeline(size)
-    data.value.stagePipelines.set(pipeline.id, pipeline)
-    data.value.selectionGroups.set(pipeline.selectionGroupId, [])
 }
+provide('injectGlobalState', globalState)
+
+
+
 </script>

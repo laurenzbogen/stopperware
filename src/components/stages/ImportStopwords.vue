@@ -53,7 +53,13 @@ import { useDropzone } from "vue3-dropzone";
 const { getRootProps, isDragAccept, isDragActive, ...rest } = useDropzone({ onDrop });
 
 
-const { updateStageState, data, setOperationStopwords, globalDropzoneEnabled, requestDependencies } = inject('injectGlobalState')
+import { useDataStore } from '@/components/composables/useDataStore';
+import { storeToRefs } from 'pinia';
+const dataStore = useDataStore()
+const { updateStageState, setOperationStopwords } = dataStore
+const { stages, selectionGroups, stopwords, editorData, stagesStateNoHistory, stagesStateHistory } = storeToRefs(dataStore)
+const { globalDropzoneEnabled, requestDependencies } = inject('injectGlobalState')
+
 watch(isDragActive, (val, oldVal) => {
     if (val === true && oldVal === false) {
         globalDropzoneEnabled.value = false
@@ -67,7 +73,7 @@ watch(isDragActive, (val, oldVal) => {
 
 const { id, stage } = defineProps(["id", "stage"])
 
-const file = ref(data.value.stagesStateHistory.get(id)?.file)
+const file = ref(stagesStateHistory.value.get(id)?.file)
 
 const state = computed(() => ({
     file: file.value
@@ -75,7 +81,7 @@ const state = computed(() => ({
 
 const corpusWords = computed(() => new Set(requestDependencies.value['wordcount'].data.map(w => w.word)))
 const corpusPercentage = computed(() => (file.value.content.reduce((count, item) => count + (corpusWords.value.has(item) ? 1 : 0), 0) / file.value.content.length) * 100)
-const stopwordsPercentage = computed(() => (file.value.content.reduce((count, item) => count + (data.value.stopwords.has(item) ? 1 : 0), 0) / file.value.content.length) * 100)
+const stopwordsPercentage = computed(() => (file.value.content.reduce((count, item) => count + (stopwords.value.has(item) ? 1 : 0), 0) / file.value.content.length) * 100)
 
 watch(state, (newState) => {
     updateStageState(id, newState, true)

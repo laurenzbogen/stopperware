@@ -7,12 +7,19 @@ import { EDITMODES } from '@/helpers';
 import * as d3 from 'd3';
 import { computed, inject, onMounted, ref, watch } from 'vue';
 
+
+import { useDataStore } from '@/components/composables/useDataStore';
+import { storeToRefs } from 'pinia';
+
+const dataStore = useDataStore()
+const { } = dataStore
+const { editorData } = storeToRefs(dataStore)
+
 // targets takes reactive array of [x, y]; gives back selected indeces
 const { container, targets, lassoOptions } = defineProps(['container', 'targets', 'lassoOptions'])
 const { onLassoStart, onLassoDrag, onLassoEnd } = lassoOptions
 
-const { data } = inject('injectGlobalState')
-const enabled = computed(() => data.value.editorData.mainToolSelected === EDITMODES['LassoPlus'].name || data.value.editorData.mainToolSelected === EDITMODES['LassoMinus'].name)
+const enabled = computed(() => editorData.value.mainToolSelected === EDITMODES['LassoPlus'].name || editorData.value.mainToolSelected === EDITMODES['LassoMinus'].name)
 
 
 const lassoEvents = ref([])
@@ -34,7 +41,6 @@ watch(() => container, () => {
             return enabled.value === true
         })
         .on('start', (e) => {
-            console.log(0)
             lassoEvents.value = [e];
             onLassoStart?.();
         })

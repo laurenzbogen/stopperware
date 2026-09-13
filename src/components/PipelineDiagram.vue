@@ -25,10 +25,15 @@
 
 <script setup>
 import { computed, inject, watch } from 'vue'
-const props = defineProps(['pipelines'])
-const { data } = inject('injectGlobalState')
-const detailStageId = computed(() => data.value.editorData.detailStageId)
+import { useDataStore } from './composables/useDataStore';
+import { storeToRefs } from 'pinia';
 
+const dataStore = useDataStore()
+const { initializePipelines, refHistory } = dataStore
+const { editorData, stagePipelines, stopwords } = storeToRefs(dataStore)
+
+const props = defineProps(['pipelines'])
+const detailStageId = computed(() => editorData.value.detailStageId)
 
 // Layout constants — everything below is derived from these,
 // so changing one value keeps the whole diagram consistent.

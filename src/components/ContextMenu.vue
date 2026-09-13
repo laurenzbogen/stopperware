@@ -36,21 +36,19 @@
 </template>
 <script setup>
 import { computed, inject, onMounted, useTemplateRef, watchEffect } from 'vue';
-import { getInitializedPipeline } from "@/helpers";
+import { useDataStore } from './composables/useDataStore';
+
 
 const { menuOptions } = defineProps(["menuOptions"])
-const { data, setOperationStopwords, addStage } = inject('injectGlobalState')
+//const { data, setOperationStopwords, addStage } = inject('injectGlobalState')
+
+const dataStore = useDataStore()
+const { addPipeline, addStage, setOperationStopwords } = dataStore
 
 const emit = defineEmits(["selected"])
 
-
 function menuFindSimilarWords(word) {
-    const newPipeline = getInitializedPipeline(data.value.stagePipelines.size)
-    data.value.selectionGroups.set(newPipeline.selectionGroupId, [])
-    data.value.stagePipelines.set(newPipeline.id, newPipeline)
-
-    const orderedPipelines = [...data.value.stagePipelines.values()].sort((a, b) => a.position - b.position)
-    const pipelineId = orderedPipelines[orderedPipelines.length - 2].id
+    const pipelineId = addPipeline()
     addStage('SimilarWords', pipelineId, { similarKey: word })
 }
 

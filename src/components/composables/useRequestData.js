@@ -13,6 +13,7 @@ export const REQUEST_STATUS = {
     UNAVAILABLE: 'UNAVAILABLE',
     INPROGRESS: 'INPROGRESS',
     AVAILABLE: 'AVAILABLE',
+    ERRORED: 'ERRORED',
 }
 
 export default function useRequestData() {
@@ -21,7 +22,7 @@ export default function useRequestData() {
     const session_id = computed(() => getCookies('session_id'))
 
     const requestDependencies = ref(Object.fromEntries(
-        Object.keys(REQUEST_DEPENDENCIES).map(key => [key, cached[key] ?? {  status: REQUEST_STATUS['UNAVAILABLE'], progress: 0, progressMessage: '', data: null }])
+        Object.keys(REQUEST_DEPENDENCIES).map(key => [key, cached[key] ?? {  status: REQUEST_STATUS['UNAVAILABLE'], progress: 0, progressMessage: '', errorMessage: '', data: null }])
     ))
 
     watch(() => requestDependencies.value['session']?.data, (newVal, oldVal) => {
@@ -44,7 +45,7 @@ export default function useRequestData() {
         requestDependencies.value[dependency].ready = false
         const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/${dependency}`, { credentials: 'include' })
         if (!res.ok) {
-            handleStreamError(res)
+            handleStreamError(res, dependency)
             return
         }
         await followToResolution(res, dependency)
@@ -62,6 +63,10 @@ export default function useRequestData() {
             }
             await delay(500)
             const nextRes = await fetch(`${import.meta.env.VITE_API_BASE_URL}/${dependency}`, { credentials: 'include' })
+            if (!nextRes.ok) {
+                handleStreamError(res, dependency)
+                return
+            }
             return followToResolution(nextRes, dependency)
         }
 
@@ -100,10 +105,6 @@ export default function useRequestData() {
             body: formData,
             credentials: 'include'
         });
-        if (!res.ok) {
-            handleStreamError(res)
-            return
-        }
         const p = await res.json()
         setCookies('session_id', p.payload)
         if (p.status === "AVAILABLE") {
@@ -114,7 +115,12 @@ export default function useRequestData() {
     }
 
 
-    function handleStreamError(e) {
+    async function handleStreamError(res, dependency) {
+        requestDependencies.value[REQUEST_DEPENDENCIES[dependency]].status = REQUEST_STATUS['ERRORED']
+        const json = await res.json()
+        requestDependencies.value[REQUEST_DEPENDENCIES[dependency]].errorMessage = json.payload ?? ''
+
+
         //console.error('Stream error:', e)
         // console.error('erasing SessionId')
         // removeCookies('session_id')

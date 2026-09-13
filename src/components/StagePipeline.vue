@@ -1,19 +1,16 @@
 <template>
-    {{ dragAction.toStageIndex }}
     <div :class="`w-[700px] flex items-center m-2  shadow-sm gap-12 ${hidden ? 'opacity-0' : null}`">
         <h1 class="font-bold">Pipeline</h1>
         <!-- <p>{{ selection.size }} selected</p> -->
-        <button @click="data.selectionGroups.set(pipeline.selectionGroupId, [])" class="btn">Clear Selection</button>
-        <!-- <button @click="data.stagePipelines.delete(pipeline.id)" class="btn">Delete Pipeline</button> -->
+        <button @click="selectionGroups.set(pipeline.selectionGroupId, [])" class="btn">Clear Selection</button>
 
     </div>
 
     <!-- dragAction.dragging && dragAction.toPipelineId === id && (dragAction.dragStage.fromPipelineId !== id || dragAction.dragStage.fromIndex !== 0) -->
-    <div 
-        :style="{ opacity: dragAction.dragging && dragAction.toPipelineId === id && dragAction.toStageIndex === 0 ? 1 : 0 }"
+    <div :style="{ opacity: dragAction.dragging && dragAction.toPipelineId === id && dragAction.toStageIndex === 0 ? 1 : 0 }"
         class="border-t border-2 w-full h-1" :ref="el => setDivider(el, 0)"></div>
 
-    <template v-for="stage, i in stageIds.map(s => data.stages.get(s))">
+    <template v-for="stage, i in stageIds.map(s => stages.get(s))">
         <div :id="`wrapper_${stage.id}`" class="grid grid-rows-[1fr_8px]" @pointerdown="(e) => handleDragDown(e, i)"
             ref="stageWrappers" :style="dragAction.dragStage.id === stage.id && dragAction.dragging ? {
                 minHeight: `${stage.resizeHeight}px`,
@@ -50,19 +47,26 @@
 </template>
 
 <script setup>
-import { ref, computed, provide, inject, useTemplateRef, toValue, onBeforeUpdate, toRaw } from 'vue';
+import { ref, computed, provide, inject, useTemplateRef, toValue, onBeforeUpdate, toRaw, onMounted } from 'vue';
 import { v4 as uuidv4 } from "uuid";
 import Stage from './Stage.vue';
 
-const { data, chooseStage, stageDrag, zoompinchRef, zoompinchTransform } = inject("injectGlobalState")
-const { id } = defineProps(['id'])
+const { chooseStage, stageDrag, zoompinchRef, zoompinchTransform } = inject("injectGlobalState")
 
+import { useDataStore } from '@/components/composables/useDataStore';
+import { storeToRefs } from 'pinia';
+import { useKeyStore } from './composables/useKeyStore';
+const dataStore = useDataStore()
+const { addPipeline, addStage } = dataStore
+const { stagePipelines, stages, selectionGroups, stopwords, editorData } = storeToRefs(dataStore)
+
+const { id } = defineProps(['id'])
 const pipeline = computed({
-    get: () => data.value.stagePipelines.get(id),
-    set: (val) => data.value.stagePipelines.set(id, val)
+    get: () => stagePipelines.value.get(id),
+    set: (val) => stagePipelines.value.set(id, val)
 })
 const hidden = computed(() => {
-    return pipeline.value.position === 0 || pipeline.value.position === data.value.stagePipelines.size - 1
+    return pipeline.value.position === 0 || pipeline.value.position === stagePipelines.value.size - 1
 })
 
 const stageIds = computed({
@@ -163,7 +167,7 @@ function handleResize(e) {
         currentPosition[1] - startPosition[1]
     ]
 
-    const stage = data.value.stages.get(resizeAction.value.resizeId)
+    const stage = stages.value.get(resizeAction.value.resizeId)
     stage.resizeHeight = resizeAction.value.offsetPosition[1] + resizeAction.value.bounds[1]
     pipeline.value.resizeWidth = resizeAction.value.offsetPosition[0] + resizeAction.value.bounds[0]
 }
@@ -177,42 +181,36 @@ function handleResizeUp(e) {
 
 
 
-
-function changeStageFilter(id, filter) {
-    const index = stageIds.value.findIndex(e => e == id)
-    for (let e of filter) {
-        stageIds.value[index].filter.push(e)
-    }
-}
-
-
-const cumulativeFilter = computed(() => {
-    //TODO
-    return []
-})
-
-function getCumulativeFilter(id) {
-    const index = stageIds.value.findIndex(e => e == id)
-    return cumulativeFilter.value[index] ?? []
-}
-
 function getWordStyle(word) {
-    const selection = data.value.selectionGroups.get(pipeline.value.selectionGroupId)
-    const stopwords = data.value.stopwords
-    if (selection.includes(word) && stopwords.has(word)) return 'text-primary'
+    const selection = selectionGroups.value.get(pipeline.value.selectionGroupId)
+    if (selection.includes(word) && stopwords.value.has(word)) return 'text-primary'
     if (selection.includes(word)) return 'text-info'
-    if (stopwords.has(word)) return 'text-accent'
+    if (stopwords.value.has(word)) return 'text-accent'
     return ''
+}
+
+function getPipelineExclude(words) {
+    return words.map(w => !pipeline.value.exclude.has(w))
 }
 
 
 provide('injectPipelineState', {
-    pipeline: stageIds,
-    changeStageFilter,
-    getCumulativeFilter,
-
+    getPipelineExclude,
     getWordStyle
 })
 
+
+const { keybinds } = storeToRefs(useKeyStore())
+onMounted(() => {
+    keybinds.value.push(['<C-a>', () => {
+        if (stages.value.get(editorData.value.detailStageId).pipeline === id) {
+            chooseStage({ pipelineID: id, index: stageIds.value.length })
+        }
+    }])
+})
+
+
+
+const { keys } = storeToRefs(useKeyStore())
 
 </script>

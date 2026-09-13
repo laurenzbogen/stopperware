@@ -113,13 +113,6 @@ function handleKeyDown(e) {
 
 function emitSelectedStage(type) {
     modal.value.close()
-    //const stage = {
-    //    pipeline: lastPipelineInfo.value.pipelineID,
-    //    id: uuidv4(),
-    //    index: lastPipelineInfo.value.index,
-    //    type: type,
-    //    filter: [],
-    //}
 
     emit('selected', type, lastPipelineInfo.value.pipelineID)
 }

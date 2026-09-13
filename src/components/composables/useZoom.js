@@ -1,11 +1,14 @@
 import * as d3 from 'd3'
 import { EDITMODES } from "@/helpers";
-import SuperJSON from "superjson";
 import { watch, inject, ref, computed, createSlots } from 'vue';
+import { useDataStore } from '@/components/composables/useDataStore';
+import { storeToRefs } from 'pinia';
 
 export default function useZoom(id, container, scaledPositions) {
-    const { data, updateStageState, zoomIsGesturing: globalZoomIsBlocking } = inject('injectGlobalState')
-    const stageStateNoHistory = data.value.stagesStateNoHistory.get(id)
+    const dataStore = useDataStore()
+    const { updateStageState } = dataStore
+    const { stagesStateNoHistory, editorData } = storeToRefs(dataStore)
+    const { zoomIsGesturing: globalZoomIsBlocking } = inject('injectGlobalState')
 
 
     const zoomTransform = ref(null);
@@ -27,7 +30,7 @@ export default function useZoom(id, container, scaledPositions) {
 
     watch(container, (containerVal) => {
         if (containerVal === null) return
-        const prevTransform = stageStateNoHistory?.transform?.transform
+        const prevTransform = stagesStateNoHistory.value.get(id)?.transform?.transform
         const { k, x, y } = prevTransform ? prevTransform : d3.zoomIdentity
         const initTransform = new d3.ZoomTransform(k, x, y)
         zoom.value = d3.zoom()
@@ -48,7 +51,7 @@ export default function useZoom(id, container, scaledPositions) {
         }
         //todo touchscreen
         if (event.type === 'mousedown') {
-            return data.value.editorData.mainToolSelected === EDITMODES['Move'].name
+            return editorData.value.mainToolSelected === EDITMODES['Move'].name
         }
         const isPinch = event.ctrlKey
         if (isPinch) {

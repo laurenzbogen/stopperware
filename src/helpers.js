@@ -10,6 +10,7 @@ export function getInitializedPipeline(position) {
         id: uuidv4(),
         position: position,
         selectionGroupId: uuidv4(),
+        exclude: new Set(),
         stages: [],
     }
 }
@@ -26,9 +27,9 @@ export function getInitializedStage(type, pipelineId, position) {
 }
 
 export const EDITMODES = {
-    Select: { name: 'Select', icon: MousePointer2 },
-    Move: { name: 'Move', icon: Move },
-    LassoPlus: { name: 'LassoPlus', icon: Lasso },
+    Select: { name: 'Select', icon: MousePointer2, tooltip: 'V' },
+    Move: { name: 'Move', icon: Move, tooltip: 'M' },
+    LassoPlus: { name: 'LassoPlus', icon: Lasso, tooltip: 'L' },
     LassoMinus: { name: 'LassoMinus', icon: Lasso },
     Placeholder: { name: 'Placeholder', icon: Placeholder }
 
@@ -41,4 +42,35 @@ export async function hashString(str) {
     const hashBuffer = await crypto.subtle.digest('SHA-256', data);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+
+export function getInitData() {
+    let initData = {
+        corpus: null,
+        stages: new Map(),
+        stagesStateHistory: new Map(),
+        stagesStateNoHistory: new Map(),
+        stopwords: new Set(),
+        stagePipelines: new Map(),
+        selectionGroups: new Map(),
+        editorData: {
+            mainToolSelected: EDITMODES['Move'].name,
+            detailStageId: '',
+        }
+    }
+
+    // include invisible pipelines
+    for (let i = 0; i < 3; i++) {
+        const pipeline = getInitializedPipeline(i)
+        const selectionGroupId = uuidv4()
+        pipeline.selectionGroupId = selectionGroupId
+
+        initData.stagePipelines.set(pipeline.id, pipeline)
+        initData.selectionGroups.set(selectionGroupId, [])
+
+        initData.selection
+    }
+
+    return initData
 }

@@ -1,69 +1,108 @@
 <template>
-    <p>OVERVIEW</p>
+    <div class="h-screen flex flex-col pb-6">
+        <p>STOPPERWARE</p>
 
-    <div class="flex flex-row p-2 w-52">
-        <button :class="`min-w-0 shrink btn ${canUndo ? 'btn-active' : 'btn-disabled'}`" @click="undo()">
-            <Undo2 />
-        </button>
-        <button :class="`min-w-0 shrink btn ${canRedo ? 'btn-active' : 'btn-disabled'}`" @click="redo()">
-            <Redo2 />
-        </button>
+        <div class="flex flex-row gap-2 my-4 items-center">
+            <FilePlusCorner class="size-10 rounded-sm p-2 hover:bg-base-200" @click="console.log('TODO')" />
+            <SaveAll v-show="!savefileLoading" class="size-10 rounded-sm p-2 hover:bg-base-200"
+                @click="downloadSavefile" />
+            <span v-show="savefileLoading"
+                class="size-6 mx-2 text-neutral/50 loading loading-spinner loading-sm"></span>
+            <Undo2 class="size-10 rounded-sm p-2 hover:bg-base-200" @click="undo()"
+                :style="{ opacity: refHistoryState.canUndo ? 1 : 0.6 }" />
+            <Redo2 class="size-10 rounded-sm p-2 hover:bg-base-200" @click="redo()"
+                :style="{ opacity: refHistoryState.canRedo ? 1 : 0.6 }" />
+        </div>
+
+        <div class="border border-1 my-4 rounded-sm">
+            <PipelineDiagram :pipelines="orderedPipelines.slice(1, -1)" />
+        </div>
+
+        <div class="grow flex flex-col min-h-0">
+            <h2 class="text-sm font-bold">DEPENDENCIES</h2>
+
+            <div class="my-4">
+                <p class="text-[12px]">{{ stopwords.size }} Stopwords selected</p>
+                <p class="text-[12px]">{{ sizeReduction }}% Corpus size reduction </p>
+            </div>
+
+            <div
+                class="text-[10px] border border-1 rounded-sm p-4 flex flex-wrap items-start content-start gap-2 flex-1 overflow-auto min-h-48">
+                <span class="bg-base-200 font-bold flex p-1 items-center gap-1 rounded-md"
+                    v-for="d in Array.from(stopwords).sort()">
+                    <span class="">{{ d }}</span>
+                    <X :size=16 @click="stopwords.delete(d)" />
+                </span>
+            </div>
+
+            <button class="btn btn-accent btn-outline btn-wide my-2" @click="downloadStopwords">Export List
+                <FileDown />
+            </button>
+        </div>
+
+        <div class="my-8">
+            <h2 class="text-sm font-bold">DEPENDENCIES</h2>
+            <DependencyOverview />
+        </div>
+    </div>
+
+
+    <div>
+        <h1>Dev</h1>
+
+        <p v-for="p in orderedPipelines">{{ p.stages }}</p> -->
+
         <button class="min-w-0 shrink  btn" @click="initializePipelines">init</button>
         <button class="min-w-0 shrink  btn" @click="clearLocalStorage()">clear</button>
     </div>
 
-    <div class="border border-1 my-4">
-        <PipelineDiagram :pipelines="orderedPipelines.slice(1, -1)" />
-    </div>
 
-    <div class="my-4">
-        <p class="mb-2 text-primary-content/100">{{ data.stopwords.size }} Stopwords selected</p>
-        <button @click="downloadSavefile" class="btn">
-            <SaveAll />
-        </button>
-        <button @click="downloadStopwords" class="btn">
-            <FileDown />
-        </button>
-
-    </div>
-
-
-    <div class="my-8">
-        <h2 class="text-sm font-bold">DEPENDENCIES</h2>
-        <DependencyOverview />
-    </div>
-
-
-    {{ data.stopwords }}
-
-    <p v-for="p in orderedPipelines">{{ p.stages }}</p> -->
 </template>
 
 <script setup>
-import { computed, inject } from 'vue';
+import { ref, computed, inject } from 'vue';
 import DependencyOverview from "@/components/DependencyOverview.vue";
 import PipelineDiagram from "@/components/PipelineDiagram.vue";
-import { FileDown, Redo2, SaveAll, Undo2 } from "@lucide/vue";
+import { FileDown, FilePlusCorner, Redo2, SaveAll, Undo2, X } from "@lucide/vue";
 import SuperJSON from 'superjson';
+import { REQUEST_STATUS } from './composables/useRequestData';
+import { useDataStore } from './composables/useDataStore';
+import { storeToRefs } from 'pinia';
 
-const { data, updateStageState, initializePipelines, refHistory } = inject('injectGlobalState')
-const { undo, redo, canUndo, canRedo } = refHistory
-const orderedPipelines = computed(() => [...data.value.stagePipelines.values()].sort((a, b) => a.position - b.position))
+const dataStore = useDataStore()
+const { initializePipelines, refHistoryFuncs } = dataStore
+const { stagePipelines, stopwords, refHistoryState } = storeToRefs(dataStore)
+
+const { requestDependencies } = inject('injectGlobalState')
+const { undo, redo } = refHistoryFuncs
+const orderedPipelines = computed(() => [...stagePipelines.value.values()].sort((a, b) => a.position - b.position))
+
+const sizeReduction = computed(() => {
+    const d = requestDependencies.value['wordcount']
+    if (d.status !== REQUEST_STATUS.AVAILABLE) return null
+    const wordcount = d.data
+    const total = wordcount.reduce((acc, w) => acc += w.count, 0)
+
+    const filtered = wordcount.filter(w => stopwords.value.has(w.word)).reduce((acc, w) => acc += w.count, 0)
+
+    return (filtered / total * 100).toFixed(2)
+})
 
 function clearLocalStorage() {
     localStorage.clear()
     location.reload()
-
 }
 
 function downloadStopwords() {
-    const text = data.value.stopwords.values().join('\n').trim()
+    const text = stopwords.value.values().join('\n').trim()
     var blob = new Blob([text], { type: "text/txt" });
     downloadBlob(blob, 'stopwords.txt')
 }
 
+const savefileLoading = ref(false)
 async function downloadSavefile() {
-    const json = SuperJSON.stringify(data.value)
+    savefileLoading.value = true
+    const json = SuperJSON.stringify(localStorage.getItem('stopperwareLocalData'))
     const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/downloadSavefile`, {
         method: 'POST',
         credentials: 'include',
@@ -77,6 +116,7 @@ async function downloadSavefile() {
     const filename = getFilename(response)
 
     downloadBlob(blob, filename)
+    savefileLoading.value = false
 }
 
 function downloadBlob(blob, filename) {

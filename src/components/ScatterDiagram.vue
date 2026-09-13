@@ -60,7 +60,7 @@ watch(zoomTransform, (zoomVal) => {
                 .attr('transform', newTransform)
                 .attr('font-size', 14 / k)
                 .select('circle')
-                .attr('r', 1/k)
+                .attr('r', 1 / k)
             scheduledZoom = false
         })
     }
@@ -106,52 +106,50 @@ function zoomIntoView(words) {
 
 
 
-onMounted(() => {
-    if (!container.value) return
+watch(
+    [() => scatterData.positions, container], () => {
+        if (!container.value) {
+            return
+        }
 
-    const [xScale, yScale] = scales.value
+        const [xScale, yScale] = scales.value
 
-    // Filter without mutating the source
-    //const filtered = data.data.filter(d => !currentFilter.value.includes(d.word))
-    // TODO hack
-    const filtered = scatterData.positions
+        d3.select(container.value)
+            .selectAll('g')
+            .data(scatterData.positions, d => d.word)
+            .join(
+                enter => {
+                    const g = enter.append('g')
 
-    const groups = d3.select(container.value)
-        .selectAll('g')
-        .data(filtered, d => d.word)
-        .join(
-            enter => {
-                const g = enter.append('g')
+                    g.attr('id', d => `scatter_point_${d.word}`)
+                    g.classed('scatter_point', true)
 
-                g.attr('id', d => `scatter_point_${d.word}`)
-                g.classed('scatter_point', true)
+                    g.append('circle')
+                        .attr('fill', 'gray')
+                        .attr('cx', d => xScale(d.x) + MARGIN_X / 2)
+                        .attr('cy', d => yScale(d.y) + MARGIN_Y / 2)
 
-                g.append('circle')
-                    .attr('fill', 'gray')
-                    .attr('cx', d => xScale(d.x) + MARGIN_X / 2)
-                    .attr('cy', d => yScale(d.y) + MARGIN_Y / 2)
+                    g.append('text')
+                        .text(d => d.word)
+                        .attr('text-anchor', 'middle')
+                        .attr('dominant-baseline', 'middle')
+                        .attr('x', d => xScale(d.x) + MARGIN_X / 2)
+                        .attr('y', d => yScale(d.y) + MARGIN_Y / 2)
+                        //Dont set font-size here
+                        //.attr('font-size', 12)
+                        .attr('fill', 'currentColor')
+                        .on('contextmenu', (e, d) => { handleWordContextMenu(e, [d.word]) })
 
-                g.append('text')
-                    .text(d => d.word)
-                    .attr('text-anchor', 'middle')
-                    .attr('dominant-baseline', 'middle')
-                    .attr('x', d => xScale(d.x) + MARGIN_X / 2)
-                    .attr('y', d => yScale(d.y) + MARGIN_Y / 2)
-                    //Dont set font-size here
-                    //.attr('font-size', 12)
-                    .attr('fill', 'currentColor')
-                    .on('contextmenu', (e, d) => { handleWordContextMenu(e, [d.word]) })
+                    return g
+                },
+                update => update,
+                exit => exit.remove()
+            )
 
-                return g
-            },
-            update => update,
-            exit => exit.remove()
-        )
-
-    d3.select(container.value).call(occlusion)
+        d3.select(container.value).call(occlusion)
 
 
-})
+    }, { immediate: true })
 
 
 function occlusion(svg, against = "g") {
@@ -189,9 +187,11 @@ function intersectRect(a, b) {
 .occluded text {
     opacity: 0.05;
 }
+
 circle {
     opacity: 0
 }
+
 .occluded circle {
     opacity: 0
 }
