@@ -6,6 +6,7 @@
 
 <script setup>
 
+
 import { useDataStore } from '../composables/useDataStore';
 import { computed, inject, ref, watch } from 'vue'
 import { useTemplateRef } from 'vue';
@@ -15,20 +16,17 @@ import { storeToRefs } from 'pinia';
 import { REQUEST_DEPENDENCIES, useDependencyStore } from '../composables/useDependencyStore';
 
 const { id } = defineProps(["id"])
-const { getPipelineExclude,  } = inject('injectPipelineState')
+const { getPipelineExclude, } = inject('injectPipelineState')
 
 const dataStore = useDataStore()
 const { selectionGroups, stages, stopwords } = storeToRefs(dataStore)
 
+// === DEPENDENCIES ===
 const { getFilteredDependency } = useDependencyStore()
-
-const selection = computed({
-    get: () => selectionGroups.value.get(stages.value.get(id).selectionGroupId),
-    set: (val) => selectionGroups.value.set(stages.value.get(id).selectionGroupId, val)
-})
-
 const embeddingScatter = computed(() => getFilteredDependency(REQUEST_DEPENDENCIES['embeddingScatter'], getPipelineExclude()))
 
+
+// ===
 const scatterStageProps = computed(() => ({
     id: id,
     scatterData: embeddingScatter.value,
@@ -39,8 +37,8 @@ const scatterStageProps = computed(() => ({
 
 
 const scatterRef = useTemplateRef('scatterRef')
+//TODO searchSelection teil von state? 
 const stage = computed(() => stages.value.get(id))
-
 watch(() => stage.value.searchSelection, (val) => {
     if (!val) return
     scatterRef.value.zoomIntoView(val.map(w => w.item))
@@ -48,9 +46,9 @@ watch(() => stage.value.searchSelection, (val) => {
 
 
 function onLassoEnd(selected) {
-    console.log(selected)
+    //Selected is boolean array der form scatterData.positions
     const s = embeddingScatter.value.positions.filter((e, i) => selected[i]).map(e => e.word)
-    selection.value = s
+    selectionGroups.value.set(stage.value.selectionGroupId, s)
 }
 
 </script>

@@ -39,8 +39,8 @@
 
         </div>
     </div>
-
 </template>
+
 <script setup>
 import SmallButton from '../design/SmallButton.vue';
 import { SquaresUnite } from '@lucide/vue';
@@ -48,23 +48,38 @@ import { SquaresSubtract } from '@lucide/vue';
 import { SquaresIntersect } from '@lucide/vue';
 
 import { hashString } from "@/helpers";
-import { computed, inject, ref, watch } from "vue";
+import { computed, hydrate, inject, onMounted, ref, watch } from "vue";
 import { useDropzone } from "vue3-dropzone";
-const { getRootProps, isDragAccept, isDragActive, ...rest } = useDropzone({ onDrop });
-
+const { getRootProps, isDragActive } = useDropzone({ onDrop });
 
 import { useDataStore } from '@/components/composables/useDataStore';
 import { storeToRefs } from 'pinia';
 import { useDependencyStore } from '../composables/useDependencyStore';
-const dataStore = useDataStore()
-const { updateStageState, setOperationStopwords } = dataStore
-const { stopwords, stagesStateHistory } = storeToRefs(dataStore)
+import { useState } from '../composables/useState';
 
+const { id } = defineProps(["id", "stage"])
+
+// === DEPENDENCIES ===
 const dependencyStore = useDependencyStore()
 const { requestDependencies } = storeToRefs(dependencyStore)
 
-const { globalDropzoneEnabled } = inject('injectGlobalState')
+const corpusWords = computed(() => new Set(requestDependencies.value['wordcount'].data.map(w => w.word)))
 
+
+// === STATE ===
+
+const dataStore = useDataStore()
+const { updateStageState, setOperationStopwords } = dataStore
+const { stopwords, stagesStateHistory } = storeToRefs(dataStore)
+const { file } = useState(id, {
+  file: { default: null, history: true }
+})
+
+
+// ===
+
+
+const { globalDropzoneEnabled } = inject('injectGlobalState')
 watch(isDragActive, (val, oldVal) => {
     if (val === true && oldVal === false) {
         globalDropzoneEnabled.value = false
@@ -76,27 +91,18 @@ watch(isDragActive, (val, oldVal) => {
     }
 })
 
-const { id, stage } = defineProps(["id", "stage"])
 
-const file = ref(stagesStateHistory.value.get(id)?.file)
-
-const state = computed(() => ({
-    file: file.value
-}))
-
-const corpusWords = computed(() => new Set(requestDependencies.value['wordcount'].data.map(w => w.word)))
 const corpusPercentage = computed(() => (file.value.content.reduce((count, item) => count + (corpusWords.value.has(item) ? 1 : 0), 0) / file.value.content.length) * 100)
 const stopwordsPercentage = computed(() => (file.value.content.reduce((count, item) => count + (stopwords.value.has(item) ? 1 : 0), 0) / file.value.content.length) * 100)
 
-watch(state, (newState) => {
-    updateStageState(id, newState, true)
-}, { deep: true })
+
+
 
 async function onDrop(acceptFiles, rejectReasons) {
     for (let f of acceptFiles) {
         const t = await f.text()
         const id = await hashString(t)
-        const newFile = { content: t.trim().split('\n'), name: f.name, active: true }
+        const newFile = { content: t.trim().split('\n'), name: f.name }
         file.value = newFile
     }
 }

@@ -112,7 +112,7 @@ function zoomIntoView(words) {
         resetZoom()
         return
     }
-    newsca
+
     const minX = positions.reduce((acc, p) => Math.min(acc, p[0]), Infinity)
     const minY = positions.reduce((acc, p) => Math.min(acc, p[1]), Infinity)
     const maxX = positions.reduce((acc, p) => Math.max(acc, p[0]), -Infinity)

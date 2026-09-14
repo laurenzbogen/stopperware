@@ -21,7 +21,7 @@
 </template>
 
 <script setup>
-import { stageTypeMap, stageTypeDependencies } from '@/stageTypeMap';
+import { stageTypeMap, stageTypeDependencies } from '@/stageModules.js';
 import { inject, onMounted } from 'vue';
 
 

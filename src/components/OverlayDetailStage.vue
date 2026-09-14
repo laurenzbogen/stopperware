@@ -66,7 +66,7 @@ import { Filter, FilterX, SquaresUnite, X } from '@lucide/vue';
 import { SquaresSubtract } from '@lucide/vue';
 import { SquaresIntersect } from '@lucide/vue';
 import Fuse from 'fuse.js';
-import { detailComponents } from '@/stageTypeMap';
+import { detailComponents } from '@/stageModules';
 import { useDataStore } from '@/components/composables/useDataStore';
 import { storeToRefs } from 'pinia';
 import { useDependencyStore } from './composables/useDependencyStore';

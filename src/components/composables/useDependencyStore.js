@@ -1,6 +1,7 @@
 import { defineStore } from "pinia"
 import SuperJSON from 'superjson'
 import { computed, onMounted, ref, toRaw, watch } from 'vue'
+import { fetchApiJson } from "@/helpers"
 
 export const REQUEST_DEPENDENCIES = {
     session: 'session',
@@ -15,6 +16,7 @@ export const REQUEST_STATUS = {
     AVAILABLE: 'AVAILABLE',
     ERRORED: 'ERRORED',
 }
+
 
 export const useDependencyStore = defineStore('stopperwareDependencyData', () => {
     const requestDependencies = ref(Object.fromEntries(
@@ -157,10 +159,6 @@ export const useDependencyStore = defineStore('stopperwareDependencyData', () =>
 
 const init = () => ({ status: REQUEST_STATUS['UNAVAILABLE'], progress: 0, progressMessage: '', errorMessage: '', data: null })
 
-async function fetchApiJson(endpoint) {
-    const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/${endpoint}`, { credentials: 'include' })
-    return await res.json()
-}
 
 
 function delay(ms) {
@@ -174,6 +172,6 @@ function filterWordcount(data, filterWordSet) {
 function filterEmbeddingScatter(data, filterWordSet) {
     return {
         ...data,
-        positions: data.positions.filter(w => !filterWordSet.has(w.word)).slice(0, 1000)
+        positions: data.positions.filter(w => !filterWordSet.has(w.word)).slice(0, 500)
     }
 }

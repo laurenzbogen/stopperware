@@ -4,7 +4,6 @@ import { LucideMove } from "@lucide/vue";
 import { MousePointer2 } from "@lucide/vue";
 import { Dot } from "@lucide/vue";
 
-
 export function getInitializedPipeline(position) {
     return {
         id: uuidv4(),
@@ -35,7 +34,6 @@ export const EDITMODES = {
 
 }
 
-
 export async function hashString(str) {
     const encoder = new TextEncoder();
     const data = encoder.encode(str);
@@ -43,7 +41,6 @@ export async function hashString(str) {
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
-
 
 export function getInitData() {
     let initData = {
@@ -73,4 +70,10 @@ export function getInitData() {
     }
 
     return initData
+}
+
+
+export async function fetchApiJson(endpoint) {
+    const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/${endpoint}`, { credentials: 'include' })
+    return await res.json()
 }

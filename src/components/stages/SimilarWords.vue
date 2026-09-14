@@ -8,7 +8,7 @@
                 <p @contextmenu="(e) => { handleContextMenu(e, word) }" :class="`text-6xl ${getWordStyle(word)}`">
                     {{
                         word }}</p>
-                <p class="text-4xl">{{ ratio.toFixed(2) }}
+                <p class="text-4xl">{{ ratio.toFixed(2)  }}
                 </p>
             </div>
         </div>
@@ -17,43 +17,15 @@
 
 <script setup>
 import { onMounted, ref, computed, watch, useTemplateRef, inject } from 'vue';
-import Lasso from '../Lasso.vue';
-import { useDataStore } from '@/components/composables/useDataStore';
-import { storeToRefs } from 'pinia';
+import { useState } from '../composables/useState';
 
-const dataStore = useDataStore()
-const { updateStageState } = dataStore
-const { stagesStateNoHistory, stagesStateHistory, selectionGroups, stages } = storeToRefs(dataStore)
 
 const { getWordStyle, handleContextMenu } = inject('injectPipelineState')
-const lassoOptions = {
-    onLassoEnd
-}
 const { id } = defineProps(['id', 'stage'])
-const container = useTemplateRef('container')
 
-const state = computed(() => {
-    const noHistory = stagesStateNoHistory.value.get(id)
-    const history = stagesStateHistory.value.get(id)
-    return {
-        ...noHistory,
-        ...history,
-    }
+const { similarKey } = useState(id, {
+    similarKey: { default: '', history: false }
 })
-const similarKey = computed(() => state.value.similarKey ?? 'noKey')
-
-const selection = computed({
-    get: () => selectionGroups.value.get(stages.value.get(id).selectionGroupId),
-    set: (val) => selectionGroups.value.set(stages.value.get(id).selectionGroupId, val)
-})
-
-function onLassoEnd() {
-
-}
-
-
-
-const emit = defineEmits(['selectionChange', 'findSimilarWords'])
 
 const results = ref([])
 
@@ -63,18 +35,7 @@ watch(similarKey, async (val) => {
     })
 
     const res = await r.json()
-
-    updateStageState(id, {
-        similarKey: val,
-        similarResult: res,
-    }, false)
     results.value = res
-}, { immediate: true })
-
-//const endpoint = computed(() => `/similar/${hash.value}/${props.stage.selected}`)
-
-
-
-
+})
 
 </script>

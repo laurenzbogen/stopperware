@@ -5,7 +5,7 @@
     </form>
 </template>
 <script setup>
-import { detailComponents } from '@/stageTypeMap';
+import { detailComponents } from '@/stageModules';
 import { computed, inject, ref, watch } from 'vue';
 
 import { useDataStore } from '@/components/composables/useDataStore';

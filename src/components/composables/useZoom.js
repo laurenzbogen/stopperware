@@ -3,15 +3,19 @@ import { EDITMODES } from "@/helpers";
 import { watch, inject, ref, computed, createSlots } from 'vue';
 import { useDataStore } from '@/components/composables/useDataStore';
 import { storeToRefs } from 'pinia';
+import { useState } from './useState';
 
 export default function useZoom(id, container, scaledPositions) {
+    // === STATE ===
     const dataStore = useDataStore()
-    const { updateStageState } = dataStore
-    const { stagesStateNoHistory, editorData } = storeToRefs(dataStore)
+    const { zoomTransform } = useState(`zoom_${id}`, {
+        zoomTransform: { default: null, history: false }
+    })
+
+    // ===
+    const { editorData } = storeToRefs(dataStore)
     const { zoomIsGesturing: globalZoomIsBlocking } = inject('injectGlobalState')
 
-
-    const zoomTransform = ref(null);
     const zoomedPositions = computed(() => scaledPositions.value?.map(d => {
         if (zoomTransform.value == null) return null
         const { k, x, y } = zoomTransform.value.transform
@@ -22,15 +26,10 @@ export default function useZoom(id, container, scaledPositions) {
 
     const zoom = ref(null)
 
-    watch(zoomTransform, (zoomVal) => {
-        const state = { transform: zoomVal }
-        // data.value.editorData.detailStageId = id
-        updateStageState(id, state, false)
-    })
 
     watch(container, (containerVal) => {
         if (containerVal === null) return
-        const prevTransform = stagesStateNoHistory.value.get(id)?.transform?.transform
+        const prevTransform = zoomTransform.value?.transform
         const { k, x, y } = prevTransform ? prevTransform : d3.zoomIdentity
         const initTransform = new d3.ZoomTransform(k, x, y)
         zoom.value = d3.zoom()

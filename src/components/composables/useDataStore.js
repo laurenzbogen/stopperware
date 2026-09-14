@@ -168,7 +168,10 @@ export const useDataStore = defineStore('stopperwareLocalData', () => {
     }
 
     function getStageState(id) {
-        // TODO
+        return {
+            ...(stagesStateNoHistory.value.get(id) ?? {}),
+            ...(stagesStateHistory.value.get(id) ?? {}),
+        }
     }
 
     function setOperationStopwords(wordSet, operation) {

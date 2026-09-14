@@ -2,9 +2,8 @@
     <CorpusPicker :enabled="globalDropzoneEnabled" />
 
     <div id="app" class="w-screen h-screen ">
-        <zoompinch ref="zoompinchRef" v-model:transform="zoompinchTransform"
-            :offset="{ top: 300, right: 0, bottom: 0, left: 0 }" :min-scale="0.1" :max-scale="4" :clamp-bounds="false"
-            :rotation="false" :zoom-speed="1" :translate-speed="1" :zoom-speed-apple-trackpad="1"
+        <zoompinch ref="zoompinchRef" v-model:transform="zoompinchTransform" :min-scale="0.1" :max-scale="4"
+            :clamp-bounds="false" :rotation="false" :zoom-speed="1" :translate-speed="1" :zoom-speed-apple-trackpad="1"
             :translate-speed-apple-trackpad="1" :mouse="editorData?.mainToolSelected === EDITMODES['Move'].name"
             :wheel="true" :touch="true" :gesture="true">
 
@@ -83,20 +82,9 @@ const mainWrapper = useTemplateRef('main-wrapper')
 const pipelineWrappers = useTemplateRef('pipelineWrappers')
 const pipelineComponents = useTemplateRef('pipelineComponents')
 
-const left = ref(0)
-const t = ref(0)
-
-const handleScroll = (e) => {
-    e.preventDefault()
-
-    left.value -= e.deltaX * 1.5
-    t.value -= e.deltaY / 1.5
-}
-
 const { keybinds } = storeToRefs(useKeyStore())
 onMounted(() => {
     keybinds.value.push(['<C-a>', () => stages.value.get(editorData.value.detailStageId).pipeline])
-    mainWrapper.value.addEventListener("wheel", handleScroll, { passive: false })
 })
 
 
@@ -201,12 +189,15 @@ function handleStageDragEnd() {
 const COOLDOWN_MS = 300
 let cooldownTimer = null
 const zoomIsGesturing = ref(false)
-const zoompinchTransform = ref({
-    translateX: 0,
-    translateY: 0,
-    scale: 1,
-    rotate: 0
-});
+const zoompinchTransform = computed({
+    get: () => editorData.value.zoompinchTransform ?? {
+        translateX: -500,
+        translateY: 100,
+        scale: 1,
+        rotate: 0
+    },
+    set: (val) => editorData.value.zoompinchTransform = val,
+})
 
 watch(zoompinchTransform, () => {
     zoomIsGesturing.value = true

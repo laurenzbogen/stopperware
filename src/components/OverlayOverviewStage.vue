@@ -42,7 +42,7 @@
 
         <div class="my-8">
             <h2 class="text-sm font-bold">DEPENDENCIES</h2>
-            <DependencyOverview />
+            <ServerStateDisplay />
         </div>
     </div>
 
@@ -61,7 +61,7 @@
 
 <script setup>
 import { ref, computed, inject } from 'vue';
-import DependencyOverview from "@/components/DependencyOverview.vue";
+import ServerStateDisplay from "@/components/ServerStateDisplay.vue"
 import PipelineDiagram from "@/components/PipelineDiagram.vue";
 import { FileDown, FilePlusCorner, Redo2, SaveAll, Undo2, X } from "@lucide/vue";
 import SuperJSON from 'superjson';
