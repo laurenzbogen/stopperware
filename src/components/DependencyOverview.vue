@@ -21,6 +21,9 @@
 import { Check, LoaderCircle, X } from '@lucide/vue';
 import { inject } from 'vue';
 import { REQUEST_STATUS } from './composables/useRequestData';
+import { useDependencyStore } from './composables/useDependencyStore';
+import { storeToRefs } from 'pinia';
 
-const { requestDependencies } = inject('injectGlobalState')
+const dependencyStore = useDependencyStore()
+const { requestDependencies } = storeToRefs(dependencyStore)
 </script>

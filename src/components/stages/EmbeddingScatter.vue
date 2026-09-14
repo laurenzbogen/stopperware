@@ -7,33 +7,27 @@
 <script setup>
 
 import { useDataStore } from '../composables/useDataStore';
-import { computed, inject, provide, ref, watch } from 'vue'
-import { onMounted, useTemplateRef } from 'vue';
-import * as d3 from 'd3'
-import ScatterDiagram from '../ScatterDiagram.vue';
+import { computed, inject, ref, watch } from 'vue'
+import { useTemplateRef } from 'vue';
+
+import ScatterDiagram from '@/components/ScatterDiagram.vue';
 import { storeToRefs } from 'pinia';
+import { REQUEST_DEPENDENCIES, useDependencyStore } from '../composables/useDependencyStore';
 
 const { id } = defineProps(["id"])
-const { onWordContextMenu, requestDependencies } = inject('injectGlobalState')
-const { getPipelineExclude } = inject('injectPipelineState')
+const { getPipelineExclude,  } = inject('injectPipelineState')
 
 const dataStore = useDataStore()
 const { selectionGroups, stages, stopwords } = storeToRefs(dataStore)
+
+const { getFilteredDependency } = useDependencyStore()
 
 const selection = computed({
     get: () => selectionGroups.value.get(stages.value.get(id).selectionGroupId),
     set: (val) => selectionGroups.value.set(stages.value.get(id).selectionGroupId, val)
 })
 
-const stageSelection = ref([])
-const embeddingScatter = computed(() => {
-    const dependency = requestDependencies.value['embeddingScatter'].data
-    const exclude = getPipelineExclude(dependency.positions.map(w => w.word))
-    return {
-        ...dependency,
-        positions: dependency.positions.filter((w, i) => exclude[i])
-    }
-})
+const embeddingScatter = computed(() => getFilteredDependency(REQUEST_DEPENDENCIES['embeddingScatter'], getPipelineExclude()))
 
 const scatterStageProps = computed(() => ({
     id: id,
@@ -41,59 +35,22 @@ const scatterStageProps = computed(() => ({
     lassoOptions: {
         onLassoEnd
     },
-    onWordContextMenu
 }))
 
 
 const scatterRef = useTemplateRef('scatterRef')
 const stage = computed(() => stages.value.get(id))
-watch([stage, stopwords, selection], () => {
-    applyColors()
-}, { deep: true })
-function applyColors() {
-    const container = scatterRef.value?.container
-    d3.select(container)
-        .selectAll('g.scatter_point')
-        .classed('text-info', d => selection.value?.includes?.(d.word))
-        .classed('text-accent', d => stopwords.value.has(d.word))
-        .classed('text-primary', d => selection.value?.includes?.(d.word) && stopwords.value.has(d.word))
-        .classed('opacity-20', d => {
-            return stage.value?.searchSelection?.length > 0 && !stage.value?.searchSelection?.map(s => s.item).includes(d.word)
-        })
-}
-
-onMounted(() => applyColors(stage.value))
 
 watch(() => stage.value.searchSelection, (val) => {
     if (!val) return
     scatterRef.value.zoomIntoView(val.map(w => w.item))
-
 })
 
 
 function onLassoEnd(selected) {
+    console.log(selected)
     const s = embeddingScatter.value.positions.filter((e, i) => selected[i]).map(e => e.word)
     selection.value = s
 }
-
-function handleContextMenu(e) {
-    e.preventDefault()
-    let newOptions = {}
-    if (stageSelection.value.length > 0) {
-        newOptions = {
-            id, selection: stageSelection.value, x: e.clientX, y: e.clientY, show: true,
-        }
-
-    } else if (e.target.nodeName == "text") {
-        newOptions = {
-            id, selection: [e.target.innerHTML], x: e.clientX, y: e.clientY, show: true,
-        }
-    } else {
-        //TODO
-    }
-    onWordContextMenu(e, newOptions)
-}
-
-
 
 </script>

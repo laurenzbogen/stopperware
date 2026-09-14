@@ -51,9 +51,9 @@
 
 
         <div class="my-8">
-            <button class="btn btn-accent btn-outline btn-wide my-2" @click="deleteStage(detailStageId)">Delete
+            <button class="btn btn-warning btn-outline btn-wide my-2" @click="deleteStage(detailStageId)">Delete
                 Stage</button>
-            <button class="btn btn-accent btn-wide text-white my-2" @click="deletePipeline(detailPipelineId)">Delete
+            <button class="btn btn-warning btn-wide text-white my-2" @click="deletePipeline(detailPipelineId)">Delete
                 Pipeline</button>
         </div>
     </div>
@@ -69,12 +69,14 @@ import Fuse from 'fuse.js';
 import { detailComponents } from '@/stageTypeMap';
 import { useDataStore } from '@/components/composables/useDataStore';
 import { storeToRefs } from 'pinia';
+import { useDependencyStore } from './composables/useDependencyStore';
 
 const dataStore = useDataStore()
 const { setOperationStopwords, setOperationPipelineExclude, deleteStage, deletePipeline } = dataStore
 const { editorData, stages, stagePipelines, selectionGroups } = storeToRefs(dataStore)
 
-const { requestDependencies } = inject('injectGlobalState')
+const dependencyStore = useDependencyStore()
+const { requestDependencies } = storeToRefs(dependencyStore)
 
 const detailStageId = computed(() => editorData.value.detailStageId)
 const detailStage = computed(() => stages.value.get(detailStageId.value))

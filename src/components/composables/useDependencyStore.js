@@ -1,6 +1,6 @@
-import { useCookies } from '@vueuse/integrations/useCookies'
+import { defineStore } from "pinia"
 import SuperJSON from 'superjson'
-import { computed, createSlots, nextTick, ref, toRaw, watch } from 'vue'
+import { computed, onMounted, ref, toRaw, watch } from 'vue'
 
 export const REQUEST_DEPENDENCIES = {
     session: 'session',
@@ -16,30 +16,37 @@ export const REQUEST_STATUS = {
     ERRORED: 'ERRORED',
 }
 
-export default function useRequestData() {
-    const cached = localStorage.getItem('stopwordsRequestData') ? SuperJSON.parse(localStorage.getItem('stopwordsRequestData')) : {}
-    const { get: getCookies, set: setCookies, remove: removeCookies } = useCookies(['session_id'])
-    const session_id = computed(() => getCookies('session_id'))
-
+export const useDependencyStore = defineStore('stopperwareDependencyData', () => {
     const requestDependencies = ref(Object.fromEntries(
-        Object.keys(REQUEST_DEPENDENCIES).map(key => [key, cached[key] ?? { status: REQUEST_STATUS['UNAVAILABLE'], progress: 0, progressMessage: '', errorMessage: '', data: null }])
+        Object.keys(REQUEST_DEPENDENCIES).map(key => [key, init()])
     ))
 
-    watch(() => requestDependencies.value['session']?.data, (newVal, oldVal) => {
-        if (!newVal) return
-        setCookies('session_id', newVal)
-    }, { immediate: true })
+    onMounted(async () => {
+        if (Object.values(requestDependencies.value).every(v => v.status === REQUEST_STATUS['AVAILABLE'])) {
+            return
+        }
 
-    watch(session_id, async (id) => {
-        if (id) requestDependencies.value[REQUEST_DEPENDENCIES['session']].status = REQUEST_STATUS['AVAILABLE']
-        else requestDependencies.value[REQUEST_DEPENDENCIES['session']].status = REQUEST_STATUS['UNAVAILABLE']
-    }, { immediate: true })
+        const { sessionId, jobStatus } = await fetchApiJson('status')
+        if (!sessionId) {
+            //TODO
+            return
+        }
+        if (jobStatus !== 'idle') {
+            //TODO
+            return
+        }
+
+        requestDependencies.value[REQUEST_DEPENDENCIES['session']].status = REQUEST_STATUS['AVAILABLE']
+        await calculateDependencies()
+    })
+
 
     async function calculateDependencies() {
         await fetchData(REQUEST_DEPENDENCIES['wordcount'])
         await fetchData(REQUEST_DEPENDENCIES['embedding'])
         await fetchData(REQUEST_DEPENDENCIES['embeddingScatter'])
     }
+
 
     async function fetchData(dependency) {
         requestDependencies.value[dependency].ready = false
@@ -105,13 +112,24 @@ export default function useRequestData() {
             body: formData,
             credentials: 'include'
         });
+
         const p = await res.json()
-        setCookies('session_id', p.payload)
         if (p.status === "AVAILABLE") {
             requestDependencies.value[REQUEST_DEPENDENCIES['session']].status = REQUEST_STATUS['AVAILABLE']
         }
 
         await calculateDependencies()
+    }
+
+    function getFilteredDependency(dependency, filterWords) {
+        if (dependency === REQUEST_DEPENDENCIES['wordcount']) {
+            return filterWordcount(requestDependencies.value[REQUEST_DEPENDENCIES['wordcount']].data, filterWords)
+        }
+        if (dependency === REQUEST_DEPENDENCIES['embeddingScatter']) {
+            return filterEmbeddingScatter(requestDependencies.value[REQUEST_DEPENDENCIES['embeddingScatter']].data, filterWords)
+        }
+
+        throw new Error('Tried to filter unfilterable dependency')
     }
 
 
@@ -126,9 +144,36 @@ export default function useRequestData() {
         // removeCookies('session_id')
     }
 
-    return { requestDependencies, uploadCorpus, calculateDependencies }
+
+
+    return { requestDependencies, uploadCorpus, calculateDependencies, getFilteredDependency }
+
+}, {
+    persist: {
+        storage: localStorage,
+        pick: ['requestDependencies']
+    }
+})
+
+const init = () => ({ status: REQUEST_STATUS['UNAVAILABLE'], progress: 0, progressMessage: '', errorMessage: '', data: null })
+
+async function fetchApiJson(endpoint) {
+    const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/${endpoint}`, { credentials: 'include' })
+    return await res.json()
 }
+
 
 function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+function filterWordcount(data, filterWordSet) {
+    return data.filter(w => !filterWordSet.has(w.word))
+}
+
+function filterEmbeddingScatter(data, filterWordSet) {
+    return {
+        ...data,
+        positions: data.positions.filter(w => !filterWordSet.has(w.word)).slice(0, 1000)
+    }
 }

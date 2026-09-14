@@ -38,7 +38,8 @@ watch(() => container, () => {
 
     svgSelect.call(d3.drag()
         .filter((e) => {
-            return enabled.value === true
+
+            return e.buttons === 1 && enabled.value === true
         })
         .on('start', (e) => {
             lassoEvents.value = [e];

@@ -59,7 +59,7 @@ import CorpusPicker from "@/components/CorpusPicker.vue";
 import StagePipeline from "./components/StagePipeline.vue";
 import StagePicker from "./components/StagePicker.vue";
 import ContextMenu from './components/ContextMenu.vue';
-import Plus from "./icons/Plus.vue";
+import { Plus } from "@lucide/vue";
 import { EDITMODES, getInitializedPipeline } from "./helpers";
 import OverlayToolbelt from "./components/OverlayToolbelt.vue";
 import OverlayDetailStage from "./components/OverlayDetailStage.vue"; import SmallButton from "./components/design/SmallButton.vue";
@@ -76,7 +76,7 @@ const { addPipeline, addStage, moveStage } = dataStore
 const { stagePipelines, stages, stopwords, editorData } = storeToRefs(dataStore)
 
 const contextMenuOptions = ref({
-    selection: [], x: 0, y: 0, show: false,
+    menuWords: [], x: 0, y: 0, show: false, pipelineId: null,
 })
 
 const mainWrapper = useTemplateRef('main-wrapper')
@@ -98,8 +98,6 @@ onMounted(() => {
     keybinds.value.push(['<C-a>', () => stages.value.get(editorData.value.detailStageId).pipeline])
     mainWrapper.value.addEventListener("wheel", handleScroll, { passive: false })
 })
-
-const requestData = useRequestData()
 
 
 const orderedPipelines = computed(() => Array.from(stagePipelines.value.values()).sort((a, b) => a.position - b.position))
@@ -218,15 +216,8 @@ watch(zoompinchTransform, () => {
     }, COOLDOWN_MS)
 }, { deep: true })
 
-function handleWordContextMenu(e, word) {
-    e.preventDefault()
-    contextMenuOptions.value = {
-        selection: [word], x: e.clientX, y: e.clientY, show: true,
-    }
-}
 
 const globalState = {
-    ...requestData,
     chooseStage: (pipelineInfo) => picker.value?.open(pipelineInfo),
 
     contextMenuOptions,
@@ -241,7 +232,6 @@ const globalState = {
         handleStageDragEnd,
     },
 
-    handleWordContextMenu,
     globalDropzoneEnabled,
 }
 provide('injectGlobalState', globalState)

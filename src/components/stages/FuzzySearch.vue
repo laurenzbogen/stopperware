@@ -15,9 +15,11 @@
 <script setup>
 import Fuse from 'fuse.js';
 import { computed, inject, ref, watch } from 'vue';
+import { useDependencyStore } from '../composables/useDependencyStore';
 
 const { id } = defineProps(['id', 'stage'])
-const { requestDependencies } = inject('injectGlobalState')
+const dependencyStore = useDependencyStore()
+const { requestDependencies } = storeToRefs(dependencyStore)
 const searchVal = ref('')
 const words = computed(() => requestDependencies.value['wordcount'].data.map(w => w.word))
 const fuse = computed(() => new Fuse(Array.from(words.value), { useExtendedSearch: true }))

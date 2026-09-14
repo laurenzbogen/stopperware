@@ -41,6 +41,7 @@ def calc_worker(h):
         X = vectorizer.fit_transform(files)
 
         emit(jobStatus="running", progress=0.7)
+
         df = pd.DataFrame(
             X.toarray(), index=filenames, columns=vectorizer.get_feature_names_out()
         )

@@ -13,8 +13,14 @@
 import { useDropZone } from '@vueuse/core'
 import SuperJSON from 'superjson';
 import { inject, ref } from 'vue';
+import { useDataStore } from './composables/useDataStore';
+import { useDependencyStore } from './composables/useDependencyStore';
 
-const { data, calculateDependencies, uploadCorpus } = inject('injectGlobalState')
+
+const { initializeDataStore  } = useDataStore()
+const { uploadCorpus } = useDependencyStore()
+
+
 const loading = ref(false)
 const { enabled } = defineProps(['enabled'])
 
@@ -44,7 +50,7 @@ async function handleCsvUpload(file) {
         credentials: 'include'
     });
     const newData = await response.text()
-    data.value = SuperJSON.parse(newData)
+    initializeDataStore(SuperJSON.parse(newData))
 
     await calculateDependencies()
 }

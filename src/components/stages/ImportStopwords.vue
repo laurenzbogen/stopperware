@@ -20,7 +20,7 @@
                         <progress class="progress progress-accent w-56" :value="stopwordsPercentage"
                             max="100"></progress>
                         <p class="text-[12px]"><span class="font-bold text-accent">{{ Math.round(stopwordsPercentage)
-                        }}%</span> of List are Stopwords</p>
+                                }}%</span> of List are Stopwords</p>
                     </div>
                 </div>
 
@@ -55,10 +55,15 @@ const { getRootProps, isDragAccept, isDragActive, ...rest } = useDropzone({ onDr
 
 import { useDataStore } from '@/components/composables/useDataStore';
 import { storeToRefs } from 'pinia';
+import { useDependencyStore } from '../composables/useDependencyStore';
 const dataStore = useDataStore()
 const { updateStageState, setOperationStopwords } = dataStore
-const { stages, selectionGroups, stopwords, editorData, stagesStateNoHistory, stagesStateHistory } = storeToRefs(dataStore)
-const { globalDropzoneEnabled, requestDependencies } = inject('injectGlobalState')
+const { stopwords, stagesStateHistory } = storeToRefs(dataStore)
+
+const dependencyStore = useDependencyStore()
+const { requestDependencies } = storeToRefs(dependencyStore)
+
+const { globalDropzoneEnabled } = inject('injectGlobalState')
 
 watch(isDragActive, (val, oldVal) => {
     if (val === true && oldVal === false) {

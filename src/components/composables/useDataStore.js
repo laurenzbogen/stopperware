@@ -100,27 +100,26 @@ export const useDataStore = defineStore('stopperwareLocalData', () => {
     }
 
     function checkEmptyPipelines() {
-        refHistoryFuncs.batch(() => {
-            let orderedPipelines = Array.from(stagePipelines.value.values()).sort((a, b) => a.position - b.position)
-            if (orderedPipelines[0].stages.length !== 0) {
-                addPipeline(0)
-            }
-            if (orderedPipelines[orderedPipelines.length - 1].stages.length !== 0) {
-                addPipeline(orderedPipelines.length)
-            }
+        let orderedPipelines = Array.from(stagePipelines.value.values()).sort((a, b) => a.position - b.position)
+        if (orderedPipelines[0].stages.length !== 0) {
+            addPipeline(0)
+        }
+        if (orderedPipelines[orderedPipelines.length - 1].stages.length !== 0) {
+            addPipeline(orderedPipelines.length)
+        }
 
-            orderedPipelines = Array.from(stagePipelines.value.values()).sort((a, b) => a.position - b.position)
-            for (let i = 1; i < orderedPipelines.length - 1; i++) {
-                if (orderedPipelines[i].stages.length === 0) {
-                    const id = orderedPipelines[i].id
-                    deletePipeline(id)
-                }
+        orderedPipelines = Array.from(stagePipelines.value.values()).sort((a, b) => a.position - b.position)
+        for (let i = 1; i < orderedPipelines.length - 1; i++) {
+            if (orderedPipelines[i].stages.length === 0) {
+                const id = orderedPipelines[i].id
+                deletePipeline(id)
             }
+        }
 
-        })
     }
 
     function addPipeline(posOrNull) {
+        let newPipeline
         refHistoryFuncs.batch(() => {
             const ordered = Array.from(stagePipelines.value.values()).sort((a, b) => a.position - b.position)
             const position = posOrNull ?? ordered.length - 1
@@ -128,12 +127,12 @@ export const useDataStore = defineStore('stopperwareLocalData', () => {
                 const id = ordered[i].id
                 stagePipelines.value.get(id).position++
             }
-            const newPipeline = getInitializedPipeline(position)
+            newPipeline = getInitializedPipeline(position)
             selectionGroups.value.set(newPipeline.selectionGroupId, [])
             stagePipelines.value.set(newPipeline.id, newPipeline)
 
-            return newPipeline.id
         })
+        return newPipeline.id
     }
 
     function deletePipeline(id) {
@@ -187,8 +186,8 @@ export const useDataStore = defineStore('stopperwareLocalData', () => {
         selectionGroups.value.set(pipeline.selectionGroupId, [])
     }
 
-    function initializePipelines() {
-        const initData = getInitData()
+    function initializeDataStore(stateOrNull) {
+        const initData = stateOrNull ?? getInitData()
         stagePipelines.value = initData.stagePipelines
         stages.value = initData.stages
         stagesStateHistory.value = initData.stagesStateHistory
@@ -197,6 +196,7 @@ export const useDataStore = defineStore('stopperwareLocalData', () => {
         editorData.value = initData.editorData
         selectionGroups.value = initData.selectionGroups
     }
+
 
     return {
         stagePipelines,
@@ -216,7 +216,7 @@ export const useDataStore = defineStore('stopperwareLocalData', () => {
         getStageState,
         setOperationStopwords,
         setOperationPipelineExclude,
-        initializePipelines,
+        initializeDataStore,
         refHistoryFuncs,
         refHistoryState,
     }

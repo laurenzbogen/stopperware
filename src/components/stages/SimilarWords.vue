@@ -1,11 +1,11 @@
 <template>
     <div class="size-full flex flex-col p-8">
-        <h2 @contextmenu="(e) => handleWordContextMenu(e, [similarKey])"
+        <h2 @contextmenu="(e) => handleContextMenu(e, similarKey)"
             :class="`text-7xl text-center font-bold ${getWordStyle(similarKey)}`">{{
                 similarKey }}</h2>
         <div class="w-[500px]">
             <div class="flex flex-row my-4 justify-between items-center" v-for="[ratio, word] in results">
-                <p @contextmenu="(e) => { handleWordContextMenu(e, [word]) }" :class="`text-6xl ${getWordStyle(word)}`">
+                <p @contextmenu="(e) => { handleContextMenu(e, word) }" :class="`text-6xl ${getWordStyle(word)}`">
                     {{
                         word }}</p>
                 <p class="text-4xl">{{ ratio.toFixed(2) }}
@@ -25,8 +25,7 @@ const dataStore = useDataStore()
 const { updateStageState } = dataStore
 const { stagesStateNoHistory, stagesStateHistory, selectionGroups, stages } = storeToRefs(dataStore)
 
-const { handleWordContextMenu } = inject('injectGlobalState')
-const { getWordStyle } = inject('injectPipelineState')
+const { getWordStyle, handleContextMenu } = inject('injectPipelineState')
 const lassoOptions = {
     onLassoEnd
 }

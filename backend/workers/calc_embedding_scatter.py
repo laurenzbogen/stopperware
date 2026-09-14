@@ -44,7 +44,7 @@ def calc_worker(h: str):
     #
     emit(jobStatus="running", progress=0.7, progressMessage="Reducing Dimension with UMAP..")
     fit = UMAP(
-        n_neighbors=30, min_dist=0.1, n_components=2, metric="cosine", random_state=42
+        n_neighbors=50, min_dist=0.1, n_components=2, metric="cosine", random_state=42
     )
     u = fit.fit_transform(vecs)
 

@@ -40,7 +40,7 @@ const emit = defineEmits(['selected'])
 const modal = useTemplateRef('picker_modal')
 const fuzzyInput = useTemplateRef('fuzzyInput')
 
-import Cross from '@/icons/Cross.vue';import Enter from '@/icons/Enter.vue';
+import { Cross } from '@lucide/vue';
 
 const fuse = new Fuse(Object.keys(stageTypeMap))
 const filteredStageTypes = ref(fuse.search(''))

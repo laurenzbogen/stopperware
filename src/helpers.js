@@ -1,8 +1,8 @@
 import { v4 as uuidv4 } from "uuid";
-import Lasso from "./icons/Lasso.vue";
-import Move from "./icons/Move.vue";
+import { Lasso } from "@lucide/vue";
+import { LucideMove } from "@lucide/vue";
 import { MousePointer2 } from "@lucide/vue";
-import Placeholder from "./icons/Placeholder.vue";
+import { Dot } from "@lucide/vue";
 
 
 export function getInitializedPipeline(position) {
@@ -28,10 +28,10 @@ export function getInitializedStage(type, pipelineId, position) {
 
 export const EDITMODES = {
     Select: { name: 'Select', icon: MousePointer2, tooltip: 'V' },
-    Move: { name: 'Move', icon: Move, tooltip: 'M' },
+    Move: { name: 'Move', icon: LucideMove, tooltip: 'M' },
     LassoPlus: { name: 'LassoPlus', icon: Lasso, tooltip: 'L' },
     LassoMinus: { name: 'LassoMinus', icon: Lasso },
-    Placeholder: { name: 'Placeholder', icon: Placeholder }
+    Placeholder: { name: 'Placeholder', icon: Dot }
 
 }
 

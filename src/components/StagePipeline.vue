@@ -2,8 +2,6 @@
     <div :class="`w-[700px] flex items-center m-2  shadow-sm gap-12 ${hidden ? 'opacity-0' : null}`">
         <h1 class="font-bold">Pipeline</h1>
         <!-- <p>{{ selection.size }} selected</p> -->
-        <button @click="selectionGroups.set(pipeline.selectionGroupId, [])" class="btn">Clear Selection</button>
-
     </div>
 
     <!-- dragAction.dragging && dragAction.toPipelineId === id && (dragAction.dragStage.fromPipelineId !== id || dragAction.dragStage.fromIndex !== 0) -->
@@ -51,7 +49,7 @@ import { ref, computed, provide, inject, useTemplateRef, toValue, onBeforeUpdate
 import { v4 as uuidv4 } from "uuid";
 import Stage from './Stage.vue';
 
-const { chooseStage, stageDrag, zoompinchRef, zoompinchTransform } = inject("injectGlobalState")
+const { chooseStage, stageDrag, zoompinchRef, contextMenuOptions } = inject("injectGlobalState")
 
 import { useDataStore } from '@/components/composables/useDataStore';
 import { storeToRefs } from 'pinia';
@@ -182,21 +180,44 @@ function handleResizeUp(e) {
 
 
 function getWordStyle(word) {
-    const selection = selectionGroups.value.get(pipeline.value.selectionGroupId)
-    if (selection.includes(word) && stopwords.value.has(word)) return 'text-primary'
-    if (selection.includes(word)) return 'text-info'
-    if (stopwords.value.has(word)) return 'text-accent'
-    return ''
+    const selection = selectionGroups.value.get(pipeline.value.selectionGroupId) ?? []
+    const active = selection.length === 0 || selection.includes(word)
+    const isStopword = stopwords.value.has(word)
+
+    if (isStopword) return active ? 'text-primary' : 'text-primary opacity-10'
+    return active ? 'opacity-100' : 'opacity-10'
 }
 
 function getPipelineExclude(words) {
-    return words.map(w => !pipeline.value.exclude.has(w))
+    return pipeline.value.exclude
 }
 
+function handleContextMenu(e, wordOrNull) {
+    e.preventDefault()
+    let newOptions = { pipelineId: id, x: e.clientX, y: e.clientY, show: true }
+    const selection = selectionGroups.value.get(pipeline.value.selectionGroupId)
+    if (wordOrNull) {
+        newOptions = {
+            menuWords: [wordOrNull],
+            ...newOptions
+        }
+    } else if (selection.length > 0) {
+        newOptions = {
+            menuWords: selection,
+            ...newOptions
+        }
+    } else return
+
+    contextMenuOptions.value = newOptions
+}
+
+const selection = computed(() => selectionGroups.value.get(pipeline.value.selectionGroupId) ?? [])
 
 provide('injectPipelineState', {
+    selection,
     getPipelineExclude,
-    getWordStyle
+    getWordStyle,
+    handleContextMenu,
 })
 
 

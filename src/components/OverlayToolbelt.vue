@@ -11,7 +11,6 @@
 </template>
 
 <script setup>
-import Placeholder from '@/icons/Placeholder.vue';
 import { EDITMODES } from '@/helpers';
 import { inject, onMounted } from 'vue';
 import { useDataStore } from '@/components/composables/useDataStore';

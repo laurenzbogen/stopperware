@@ -29,7 +29,7 @@ import { useDataStore } from './composables/useDataStore';
 import { storeToRefs } from 'pinia';
 
 const dataStore = useDataStore()
-const { initializePipelines, refHistory } = dataStore
+const { } = dataStore
 const { editorData, stagePipelines, stopwords } = storeToRefs(dataStore)
 
 const props = defineProps(['pipelines'])

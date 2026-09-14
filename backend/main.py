@@ -68,11 +68,11 @@ def get_session_files(session_id) -> list:
     return files
 
 
-def get_session_id(session_id: str | None = Cookie(default=None)) -> str:
-    if not session_id:
+def get_session_id(stopperware_session_id: str | None = Cookie(default=None)) -> str:
+    if not stopperware_session_id:
         raise HTTPException(status_code=400, detail="Missing session_id cookie")
 
-    return session_id
+    return stopperware_session_id
 
 
 def get_cached_model(h: str = Depends(get_session_id)):
@@ -117,6 +117,8 @@ async def upload_files(
 
     h = hashlib.sha256(firstlines + str(size).encode()).hexdigest()
     process_files(files, h)
+
+    response.set_cookie(key="stopperware_session_id", value=h)
     return {"status": "AVAILABLE", "payload": h}
 
 
@@ -185,11 +187,10 @@ def tfidf(h: str = Depends(get_session_id)):
     transformed = svd.fit_transform(tf_idf.T)
     result = scaler.fit_transform(transformed)
 
-
     r = pd.DataFrame(scaler.fit_transform(result), index=wordcounts.columns)
-    r = r.loc[tf_idf.std().sort_values(ascending=False).index ]
+    r = r.loc[tf_idf.std().sort_values(ascending=False).index]
     r = r.reset_index()
-    r.columns = ['word', 'x', 'y']
+    r.columns = ["word", "x", "y"]
 
     return r.iloc[:500].to_dict(orient="records")
 
@@ -388,6 +389,17 @@ async def downloadSavefile(
         media_type="application/zip",
         background=background_tasks,
     )
+
+
+@app.get("/status")
+def status(
+    response: Response, stopperware_session_id: str | None = Cookie(default=None)
+):
+    response.set_cookie(key="stopperware_session_id", value=stopperware_session_id)
+    return {
+        "sessionId": stopperware_session_id,
+        "jobStatus": job_state.evaluate()[1]["jobStatus"],
+    }
 
 
 #

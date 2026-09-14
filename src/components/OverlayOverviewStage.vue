@@ -1,6 +1,6 @@
 <template>
     <div class="h-screen flex flex-col pb-6">
-        <p>STOPPERWARE</p>
+        <p class="text-primary">STOPPERWARE</p>
 
         <div class="flex flex-row gap-2 my-4 items-center">
             <FilePlusCorner class="size-10 rounded-sm p-2 hover:bg-base-200" @click="console.log('TODO')" />
@@ -35,7 +35,7 @@
                 </span>
             </div>
 
-            <button class="btn btn-accent btn-outline btn-wide my-2" @click="downloadStopwords">Export List
+            <button class="btn btn-primary btn-outline btn-wide my-2" @click="downloadStopwords">Export List
                 <FileDown />
             </button>
         </div>
@@ -52,7 +52,7 @@
 
         <p v-for="p in orderedPipelines">{{ p.stages }}</p> -->
 
-        <button class="min-w-0 shrink  btn" @click="initializePipelines">init</button>
+        <button class="min-w-0 shrink  btn" @click="initializeDataStore()">init</button>
         <button class="min-w-0 shrink  btn" @click="clearLocalStorage()">clear</button>
     </div>
 
@@ -68,12 +68,14 @@ import SuperJSON from 'superjson';
 import { REQUEST_STATUS } from './composables/useRequestData';
 import { useDataStore } from './composables/useDataStore';
 import { storeToRefs } from 'pinia';
+import { useDependencyStore } from './composables/useDependencyStore';
 
 const dataStore = useDataStore()
-const { initializePipelines, refHistoryFuncs } = dataStore
+const { initializeDataStore, refHistoryFuncs } = dataStore
 const { stagePipelines, stopwords, refHistoryState } = storeToRefs(dataStore)
 
-const { requestDependencies } = inject('injectGlobalState')
+const dependencyStore = useDependencyStore()
+const { requestDependencies } = storeToRefs(dependencyStore)
 const { undo, redo } = refHistoryFuncs
 const orderedPipelines = computed(() => [...stagePipelines.value.values()].sort((a, b) => a.position - b.position))
 

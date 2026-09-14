@@ -1,6 +1,6 @@
 <template>
     <div @click="editorData.detailStageId = stage.id" class="contents">
-        <div :style="{opacity: editorData.detailStageId === stage.id ? 1 : 0.5}" class="flex gap-2 items-center py-2">
+        <div :style="{ opacity: editorData.detailStageId === stage.id ? 1 : 0.5 }" class="flex gap-2 items-center py-2">
             <!-- <span class="font-bold text-primary-content/60 text-xs">{{ i + 1 }}</span> -->
             <span class="font-bold text-primary-content/60 text-xs"> — </span>
             <span class="font-bold text-primary-content/60 text-xs">{{ stage.type }}</span>
@@ -27,14 +27,17 @@ import { inject, onMounted } from 'vue';
 
 import { useDataStore } from '@/components/composables/useDataStore';
 import { storeToRefs } from 'pinia';
+
+import { REQUEST_DEPENDENCIES, REQUEST_STATUS } from './composables/useDependencyStore.js';
+import { useDependencyStore } from './composables/useDependencyStore';
+
 const dataStore = useDataStore()
 const { editorData } = storeToRefs(dataStore)
 
-
 const { stage } = defineProps(['stage'])
-import { REQUEST_DEPENDENCIES, REQUEST_STATUS } from './composables/useRequestData';
 
-const { requestDependencies } = inject('injectGlobalState')
+const dependencyStore = useDependencyStore()
+const { requestDependencies } = storeToRefs(dependencyStore)
 
 const dependentOn = stageTypeDependencies[stage.type]
 
