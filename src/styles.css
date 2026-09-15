@@ -9,7 +9,6 @@
   prefersdark: false; /* set as default dark mode (prefers-color-scheme:dark) */
   color-scheme: light; /* color of browser-provided UI */
   --color-primary: oklch(0.65 0.1497 36.23);
-  --color-warning: oklch(60% 0.19 32);
 
 }
 

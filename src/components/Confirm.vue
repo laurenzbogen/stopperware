@@ -7,7 +7,7 @@
             </p>
             <div class="modal-action">
                 <button @click.stop="_cancel" class="btn btn-ghost">Cancel</button>
-                <button @click.stop="_accept" class="btn btn-warning">Confirm</button>
+                <button @click.stop="_accept" class="btn btn-error">Confirm</button>
             </div>
         </div>
         <div class="modal-backdrop bg-black/40"></div>

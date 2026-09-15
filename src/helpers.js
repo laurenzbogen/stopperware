@@ -27,7 +27,7 @@ export function getInitializedStage(type, pipelineId, position) {
 
 export const EDITMODES = {
     Select: { name: 'Select', icon: MousePointer2, tooltip: 'V' },
-    Move: { name: 'Move', icon: LucideMove, tooltip: 'M' },
+    Move: { name: 'Move', icon: LucideMove, tooltip: 'H' },
     LassoPlus: { name: 'LassoPlus', icon: Lasso, tooltip: 'L' },
     LassoMinus: { name: 'LassoMinus', icon: Lasso },
     Placeholder: { name: 'Placeholder', icon: Dot }

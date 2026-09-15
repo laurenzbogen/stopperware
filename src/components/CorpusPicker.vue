@@ -1,11 +1,6 @@
 <template>
     <div
         :class="`fixed pointer-events-none left-0 top-0 w-screen h-screen ${isOverDropZone && enabled ? 'bg-info/30' : ''}`">
-        <!--     <div v-show="!data.corpus" role="alert" -->
-        <!--         class="absolute left-1/2 top-12 -translate-1/2 z-100 alert alert-warning alert-soft"> -->
-        <!--         <span>No Corpus Selected, Drag and drop a Corpus Folder</span> -->
-        <!--         <span v-show="loading" class="loading loading-spinner loading-sm"></span> -->
-        <!--     </div> -->
     </div>
 </template>
 

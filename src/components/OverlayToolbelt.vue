@@ -21,7 +21,7 @@ const { keybinds } = storeToRefs(useKeyStore())
 
 onMounted(() => {
     keybinds.value.push(['V', () => editorData.value.mainToolSelected = EDITMODES['Select'].name])
-    keybinds.value.push(['M', () => editorData.value.mainToolSelected = EDITMODES['Move'].name])
+    keybinds.value.push(['H', () => editorData.value.mainToolSelected = EDITMODES['Move'].name])
     keybinds.value.push(['L', () => editorData.value.mainToolSelected = EDITMODES['LassoPlus'].name])
 })
 

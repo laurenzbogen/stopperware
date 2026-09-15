@@ -51,9 +51,9 @@
 
 
         <div class="my-8">
-            <button class="btn btn-warning btn-outline btn-wide my-2" @click="deleteStage(detailStageId)">Delete
+            <button class="btn btn-error btn-outline btn-wide my-2" @click="deleteStage(detailStageId)">Delete
                 Stage</button>
-            <button class="btn btn-warning btn-wide text-white my-2" @click="deletePipeline(detailPipelineId)">Delete
+            <button class="btn btn-error btn-wide text-white my-2" @click="deletePipeline(detailPipelineId)">Delete
                 Pipeline</button>
         </div>
     </div>
