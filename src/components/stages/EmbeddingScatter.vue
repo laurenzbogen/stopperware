@@ -1,6 +1,6 @@
 <template>
     <div class="absolute h-full w-full">
-        <ScatterDiagram v-if="embeddingScatter" ref="scatterRef" v-bind="scatterStageProps" />
+        <ScatterDiagram v-if="scatterPositions" ref="scatterRef" v-bind="scatterStageProps" />
     </div>
 </template>
 
@@ -13,23 +13,19 @@ import { useTemplateRef } from 'vue';
 
 import ScatterDiagram from '@/components/ScatterDiagram.vue';
 import { storeToRefs } from 'pinia';
-import { REQUEST_DEPENDENCIES, useDependencyStore } from '../composables/useDependencyStore';
-
-const { id } = defineProps(["id"])
-const { getPipelineExclude, } = inject('injectPipelineState')
+const { id, dependencyData } = defineProps(["id", "dependencyData"])
 
 const dataStore = useDataStore()
 const { selectionGroups, stages, stopwords } = storeToRefs(dataStore)
 
 // === DEPENDENCIES ===
-const { getFilteredDependency } = useDependencyStore()
-const embeddingScatter = computed(() => getFilteredDependency(REQUEST_DEPENDENCIES['embeddingScatter'], getPipelineExclude()))
+const scatterPositions = computed(() => dependencyData['embeddingScatter'])
 
 
 // ===
-const scatterStageProps = computed(() => ({
+const scatterStageProps = computed(() =>({
     id: id,
-    scatterData: embeddingScatter.value,
+    scatterPositions: scatterPositions.value,
     lassoOptions: {
         onLassoEnd
     },
@@ -47,7 +43,7 @@ watch(() => stage.value.searchSelection, (val) => {
 
 function onLassoEnd(selected) {
     //Selected is boolean array der form scatterData.positions
-    const s = embeddingScatter.value.positions.filter((e, i) => selected[i]).map(e => e.word)
+    const s = scatterPositions.value.filter((e, i) => selected[i]).map(e => e.word)
     selectionGroups.value.set(stage.value.selectionGroupId, s)
 }
 

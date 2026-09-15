@@ -1,6 +1,6 @@
 <template>
     <p class="text-[12px] font-bold text-neutral/60"> {{ similarKey }} </p>
-    <form @submit.prevent="stagesStateNoHistory.get(id).similarKey = inputVal">
+    <form @submit.prevent="stagesStateNoHistory.set(id, {similarKey: inputVal})">
         <input class="input rounded-sm" v-model="inputVal" type="text">
     </form>
 </template>
@@ -31,7 +31,7 @@ const state = computed(() => {
     }
 })
 
-const similarKey = computed(() => stagesStateNoHistory.value.get(id).similarKey)
+const similarKey = computed(() => stagesStateNoHistory.value.get(id)?.similarKey)
 
 
 </script>

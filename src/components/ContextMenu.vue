@@ -23,7 +23,7 @@
 
 </template>
 <script setup>
-import { computed, inject, onMounted, useTemplateRef, watchEffect } from 'vue';
+import { computed } from 'vue';
 import { useDataStore } from './composables/useDataStore';
 import { storeToRefs } from 'pinia';
 
@@ -36,7 +36,6 @@ const { menuOptions } = defineProps(["menuOptions"])
 const menuWords = computed(() => menuOptions.menuWords)
 const stopwordsAdd = computed(() => menuWords.value.some(w => !stopwords.value.has(w)))
 const pipelineId = computed(() => menuOptions.pipelineId)
-
 
 const emit = defineEmits(["selected"])
 

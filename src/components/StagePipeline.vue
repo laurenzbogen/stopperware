@@ -38,10 +38,13 @@
 
     </template>
 
-    <div :class="`${hidden ? 'opacity-0' : null}`">
-        <button class="btn" @click="chooseStage({ pipelineID: id, index: stageIds.length })">Add</button>
-        <button class="btn" @click="chooseStage({ pipelineID: id, index: stageIds.length })">Add from Selected</button>
-    </div>
+    <button @click="chooseStage({ pipelineID: id, index: stageIds.length })" v-show="!hidden"
+        class="w-full h-28 bg-base-200/30 hover:bg-base-200 rounded-lg">
+        <Plus class="m-auto" />
+    </button>
+    <!-- <div :class="`${hidden ? 'opacity-0' : null}`"> -->
+    <!--     <button class="btn" @click="chooseStage({ pipelineID: id, index: stageIds.length })">Add</button> -->
+    <!-- </div> -->
 </template>
 
 <script setup>
@@ -54,6 +57,7 @@ const { chooseStage, stageDrag, zoompinchRef, contextMenuOptions } = inject("inj
 import { useDataStore } from '@/components/composables/useDataStore';
 import { storeToRefs } from 'pinia';
 import { useKeyStore } from './composables/useKeyStore';
+import { Plus } from '@lucide/vue';
 const dataStore = useDataStore()
 const { addPipeline, addStage } = dataStore
 const { stagePipelines, stages, selectionGroups, stopwords, editorData } = storeToRefs(dataStore)
@@ -184,7 +188,7 @@ function getWordStyle(word) {
     const active = selection.length === 0 || selection.includes(word)
     const isStopword = stopwords.value.has(word)
 
-    if (isStopword) return active ? 'text-primary' : 'text-primary opacity-10'
+    if (isStopword) return active ? 'text-primary font-typerwriter' : 'text-primary opacity-10 font-typewriter'
     return active ? 'opacity-100' : 'opacity-10'
 }
 

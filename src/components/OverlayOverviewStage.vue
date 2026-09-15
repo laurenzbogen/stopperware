@@ -1,9 +1,12 @@
 <template>
-    <div class="h-screen flex flex-col pb-6">
-        <p class="text-primary">STOPPERWARE</p>
+    <div class="font-typewriter h-screen flex flex-col pb-6">
+        <div class="flex items-center gap-2">
+            <img class="h-12 w-12" src="/favicon.png" alt="">
+            <p class="text-primary">STOPPERWARE</p>
+        </div>
 
         <div class="flex flex-row gap-2 my-4 items-center">
-            <FilePlusCorner class="size-10 rounded-sm p-2 hover:bg-base-200" @click="console.log('TODO')" />
+            <FilePlusCorner class="size-10 rounded-sm p-2 hover:bg-base-200" @click="handleClickedNewSession" />
             <SaveAll v-show="!savefileLoading" class="size-10 rounded-sm p-2 hover:bg-base-200"
                 @click="downloadSavefile" />
             <span v-show="savefileLoading"
@@ -60,12 +63,12 @@
 </template>
 
 <script setup>
-import { ref, computed, inject } from 'vue';
+import { ref, computed, inject, onMounted } from 'vue';
 import ServerStateDisplay from "@/components/ServerStateDisplay.vue"
 import PipelineDiagram from "@/components/PipelineDiagram.vue";
 import { FileDown, FilePlusCorner, Redo2, SaveAll, Undo2, X } from "@lucide/vue";
 import SuperJSON from 'superjson';
-import { REQUEST_STATUS } from './composables/useRequestData';
+import { REQUEST_STATUS } from './composables/Dependency';
 import { useDataStore } from './composables/useDataStore';
 import { storeToRefs } from 'pinia';
 import { useDependencyStore } from './composables/useDependencyStore';
@@ -81,7 +84,7 @@ const orderedPipelines = computed(() => [...stagePipelines.value.values()].sort(
 
 const sizeReduction = computed(() => {
     const d = requestDependencies.value['wordcount']
-    if (d.status !== REQUEST_STATUS.AVAILABLE) return null
+    if (d.requestStatus !== REQUEST_STATUS.AVAILABLE) return null
     const wordcount = d.data
     const total = wordcount.reduce((acc, w) => acc += w.count, 0)
 
@@ -137,5 +140,33 @@ function getFilename(response) {
     const match = disposition.match(/filename\*?=(?:UTF-8''|")?([^";]+)/i)
     return match ? decodeURIComponent(match[1].replace(/"$/, '')) : null
 }
+
+import { useConfirm } from '@/components/composables/useConfirm'
+async function handleClickedNewSession() {
+    const { confirm } = useConfirm()
+    const ok = await confirm('Are you sure you want to start a new session? Consider saving your old session')
+    if (ok) {
+        localStorage.clear()
+        document.cookie = "stopperware_session_id=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+        location.reload()
+    }
+}
+
+onMounted(() => {
+    document.addEventListener('keydown', (e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key === "z") {
+            e.preventDefault();
+            e.stopPropagation()
+            undo();
+        }
+        if ((e.metaKey || e.ctrlKey) && e.key === "y") {
+            e.preventDefault();
+            e.stopPropagation()
+            redo();
+        }
+
+    })
+})
+
 
 </script>

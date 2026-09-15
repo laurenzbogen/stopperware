@@ -192,7 +192,7 @@ def tfidf(h: str = Depends(get_session_id)):
     r = r.reset_index()
     r.columns = ["word", "x", "y"]
 
-    return r.iloc[:500].to_dict(orient="records")
+    return {"status": "AVAILABLE", "payload": r.iloc[:500].to_dict(orient="records")}
 
 
 @app.get("/embedding")
@@ -248,15 +248,7 @@ async def embeddingScatter(
             na_values=["", "NA", "NULL"],
         )
 
-        payload = {
-            "minX": float(positions["x"].min()),
-            "maxX": float(positions["x"].max()),
-            "minY": float(positions["y"].min()),
-            "maxY": float(positions["y"].max()),
-            "positions": positions[["word", "count", "x", "y"]].to_dict(
-                orient="records"
-            ),
-        }
+        payload = positions[["word", "count", "x", "y"]].to_dict(orient="records")
 
         p = job_state.get_process_if_running()
         if p is None:
@@ -286,7 +278,11 @@ def embeddingSimilar(similarKey: str, h=Depends(get_session_id)):
             status_code=400, detail=f"Embedding model couldnt be loaded"
         )
     model = fasttext.load_model(str(model_path)) if model_path.is_file() else None
-    return model.get_nearest_neighbors(similarKey, k=10)
+
+    return {
+        "status": "AVAILABLE",
+        "payload": model.get_nearest_neighbors(similarKey, k=20),
+    }
 
 
 def process_files(files: List[UploadFile], h: str):

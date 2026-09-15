@@ -51,15 +51,17 @@ export const useDataStore = defineStore('stopperwareLocalData', () => {
 
 
     // --- actions ---
-    function addStage(type, pipelineId, initState) {
+    function addStage(type, pipelineId, init) {
         refHistoryFuncs.batch(() => {
             const stage = getInitializedStage(type, pipelineId)
             const pipeline = stagePipelines.value.get(pipelineId)
 
-            if (initState) {
-                stagesStateNoHistory.value.set(stage.id, initState)
-            }
+            stage.init = init
 
+            // if (initState) {
+            //     stagesStateNoHistory.value.set(stage.id, initState)
+            // }
+            //
             stage.selectionGroupId = pipeline.selectionGroupId
             pipeline.stages.push(stage.id)
             stages.value.set(stage.id, stage)

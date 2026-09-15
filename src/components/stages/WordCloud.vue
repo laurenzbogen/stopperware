@@ -1,17 +1,9 @@
 <template>
     <svg :id="id" class="absolute" ref="container" width="100%" height="100%">
         <g :transform="transformString">
-            <text
-                v-for="w in layoutedWordcloud"
-                :key="w.word"
-                :x="w.x + dimensions[0] / 2"
-                :y="w.y + dimensions[1] / 2"
-                :style="{ fontSize: `${w.size}px`, fontFamily: 'Impact' }"
-                text-anchor="middle"
-                fill="currentColor"
-                :class="getWordStyle(w.word)"
-                @contextmenu="handleContextMenu($event, [w.word])"
-            >{{ w.word }}</text>
+            <text v-for="w in layoutedWordcloud" :key="w.word" :x="w.x + dimensions[0] / 2" :y="w.y + dimensions[1] / 2"
+                :style="{ fontSize: `${w.size}px`, fontFamily: 'Impact' }" text-anchor="middle" fill="currentColor"
+                :class="getWordStyle(w.word)" @contextmenu="handleContextMenu($event, w.word)">{{ w.word }}</text>
         </g>
         <Lasso v-bind="{ container, targets: zoomedPositions, lassoOptions }" />
     </svg>
@@ -30,39 +22,35 @@ import { storeToRefs } from 'pinia';
 import { REQUEST_DEPENDENCIES, useDependencyStore } from '../composables/useDependencyStore';
 
 const dataStore = useDataStore()
-const { stages, selectionGroups, stopwords, editorData } = storeToRefs(dataStore)
-
-const { getFilteredDependency } = useDependencyStore()
+const { stages, selectionGroups } = storeToRefs(dataStore)
 
 const { handleContextMenu, getPipelineExclude, getWordStyle } = inject('injectPipelineState')
 
-const { id } = defineProps(['id'])
+// === DEPENDENCIES ===
+const { id, dependencyData } = defineProps(["id", "dependencyData"])
+const filteredWordcount = computed(() => dependencyData["wordcount"])
+
+// ====
+
 const container = useTemplateRef('container')
 
-// Fixed layout canvas size — kept as a plain constant since it isn't dynamic yet.
-const dimensions = [500, 500]
+const dimensions = computed(() => {
+    const box = container.value?.getBoundingClientRect?.()
+    return [600, 250]
+    return [box?.width ?? 0, box?.height ?? 0]
+})
 
 const layoutedWordcloud = ref(null)
-
-const filteredWordcount = computed(() => getFilteredDependency(REQUEST_DEPENDENCIES['wordcount'], getPipelineExclude()))
 
 const max = computed(() => filteredWordcount.value.reduce((acc, w) => Math.max(acc, w.count), 0))
 const min = computed(() => filteredWordcount.value.reduce((acc, w) => Math.min(acc, w.count), Infinity))
 
 const scale = computed(() => d3.scalePow().domain([min.value, max.value]).range([16, 72]).clamp(true))
-
 const stage = computed(() => stages.value.get(id))
-const selection = computed({
-    get: () => selectionGroups.value.get(stage.value.selectionGroupId),
-    set: (val) => selectionGroups.value.set(stage.value.selectionGroupId, val)
-})
 
-// --- D3-cloud layout: this is the one thing D3 has to own (there's no Vue
-// equivalent for the word-cloud placement algorithm). It only computes
-// positions/sizes; it never touches the DOM.
-watch(filteredWordcount, () => {
+watch([filteredWordcount, dimensions], () => {
     if (!filteredWordcount.value) return
-    if (dimensions.some(v => v === 0)) {
+    if (dimensions.value.some(v => v === 0)) {
         console.log("Cloud dimensions are null or 0, skipping..")
         return
     }
@@ -71,7 +59,7 @@ watch(filteredWordcount, () => {
     const wordsToDraw = filteredWordcount.value.slice(0, maxWords).map(w => markRaw({ ...w }))
 
     cloud()
-        .size(dimensions)
+        .size(dimensions.value)
         .words(wordsToDraw)
         .text((d) => d.word)
         .rotate(0)
@@ -86,26 +74,18 @@ watch(filteredWordcount, () => {
 }, { immediate: true })
 
 
-// --- Zoom: useZoom still drives the gesture/math (that's D3's job), but
-// applying it is just a reactive `transform` attribute on a wrapping <g>.
-const scaledPositions = computed(() => layoutedWordcloud.value?.map(d => [d.x + dimensions[0] / 2, d.y + dimensions[1] / 2]))
+const scaledPositions = computed(() => layoutedWordcloud.value?.map(d => [d.x + dimensions.value[0] / 2, d.y + dimensions.value[1] / 2]))
 const { zoomedPositions, zoomTransform } = useZoom(id, container, scaledPositions)
-
 const transformString = computed(() => {
     if (!zoomTransform.value) return ''
     const { k, x, y } = zoomTransform.value.transform
     return `translate(${x}, ${y}) scale(${k})`
 })
 
-// --- Lasso selection: unchanged logic, just no DOM manipulation involved.
 const lassoOptions = { onLassoEnd }
 function onLassoEnd(selected) {
-    const s = layoutedWordcloud.value.filter((e, i) => selected[i]).map(e => e.word)
-    if (editorData.value.mainToolSelected === EDITMODES['LassoPlus'].name) {
-        selection.value = s
-    }
-    if (editorData.value.mainToolSelected === EDITMODES['LassoMinus'].name) {
-        selection.value = Array.from(new Set(selection.value).difference(new Set(s)))
-    }
+    const s = filteredWordcount.value.filter((e, i) => selected[i]).map(e => e.word)
+    selectionGroups.value.set(stage.value.selectionGroupId, s)
 }
+
 </script>

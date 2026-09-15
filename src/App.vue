@@ -1,5 +1,6 @@
 <template>
     <CorpusPicker :enabled="globalDropzoneEnabled" />
+    <Confirm v-if="confirmIsOpen" />
 
     <div id="app" class="w-screen h-screen ">
         <zoompinch ref="zoompinchRef" v-model:transform="zoompinchTransform" :min-scale="0.1" :max-scale="4"
@@ -7,8 +8,8 @@
             :translate-speed-apple-trackpad="1" :mouse="editorData?.mainToolSelected === EDITMODES['Move'].name"
             :wheel="true" :touch="true" :gesture="true">
 
-            <div class="min-w-screen h-screen relative" ref="main-wrapper" id="main">
-                <div id="content_wrapper" ref="content-wrapper" class="flex gap-32">
+            <div class="" ref="main-wrapper" id="main">
+                <div id="content_wrapper" ref="content-wrapper" class="relative flex gap-32 w-fit">
                     <template :key="pipeline.id" v-for="(pipeline, i) in orderedPipelines">
                         <div :style="{ minWidth: `${pipeline.resizeWidth}px` }" ref="pipelineWrappers"
                             :class="`flex-none ${pipeline.stages.includes(editorData.detailStageId) ? 'bg-neutral-100/70' : ''}`"
@@ -16,13 +17,18 @@
                             <StagePipeline :id="pipeline.id" ref="pipelineComponents" :key="pipeline.id" />
                         </div>
 
-                        <div v-if="i == stagePipelines.size - 2" class="-mr-44">
-                            <SmallButton @click="addPipeline()">
-                                <Plus class="w-6 h-6 relative z-50" />
-                            </SmallButton>
-                        </div>
 
                     </template>
+
+                    <div class="absolute h-full right-[700px] w-28  bg-base-200/30 hover:bg-base-200 rounded-lg">
+                        <button class="w-full h-full" @click="addPipeline()">
+                            <Plus class="m-auto" />
+                        </button>
+                        <!-- <SmallButton > -->
+                        <!--     <Plus class="w-6 h-6 relative z-50" /> -->
+                        <!-- </SmallButton> -->
+                    </div>
+
                 </div>
             </div>
 
@@ -62,7 +68,6 @@ import { Plus } from "@lucide/vue";
 import { EDITMODES, getInitializedPipeline } from "./helpers";
 import OverlayToolbelt from "./components/OverlayToolbelt.vue";
 import OverlayDetailStage from "./components/OverlayDetailStage.vue"; import SmallButton from "./components/design/SmallButton.vue";
-import useRequestData from "./components/composables/useRequestData";
 import OverlayOverviewStage from "./components/OverlayOverviewStage.vue";
 import { useKeyStore } from "@/components/composables/useKeyStore";
 
@@ -70,6 +75,7 @@ import { useKeyStore } from "@/components/composables/useKeyStore";
 
 import { useDataStore } from '@/components/composables/useDataStore';
 import { storeToRefs } from 'pinia';
+import Confirm from "./components/Confirm.vue";
 const dataStore = useDataStore()
 const { addPipeline, addStage, moveStage } = dataStore
 const { stagePipelines, stages, stopwords, editorData } = storeToRefs(dataStore)
@@ -227,6 +233,8 @@ const globalState = {
 }
 provide('injectGlobalState', globalState)
 
+import { useConfirm } from "./components/composables/useConfirm";
+const { isOpen: confirmIsOpen } = useConfirm()
 
 
 </script>

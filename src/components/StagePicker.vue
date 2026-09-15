@@ -7,8 +7,9 @@
                 <h3 class="text-lg font-bold">Add Pipeline Stage</h3>
 
                 <form method="dialog">
-                    <button class="btn btn-circle btn-sm">
-                        <Cross />
+                    <button class="hover:bg-base-200 p-1 rounded-sm">
+                    
+                    <X />
                     </button>
                 </form>
             </div>
@@ -40,7 +41,7 @@ const emit = defineEmits(['selected'])
 const modal = useTemplateRef('picker_modal')
 const fuzzyInput = useTemplateRef('fuzzyInput')
 
-import { Cross } from '@lucide/vue';
+import { X } from '@lucide/vue';
 
 const fuse = new Fuse(Object.keys(stageTypeMap))
 const filteredStageTypes = ref(fuse.search(''))

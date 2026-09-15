@@ -11,19 +11,11 @@ export const stageTypeMap = {
     EmbeddingScatter,
     WordCloud,
     ImportStopwords,
-    FuzzySearch,
+    // FuzzySearch,
     SimilarWords,
     TfidfScatter,
 }
 
-export const stageTypeDependencies = {
-    'EmbeddingScatter': ['session', 'embeddingScatter'],
-    'WordCloud': ['session', 'wordcount'],
-    'FuzzySearch': ['session', 'wordcount'],
-    'ImportStopwords': ['session', 'wordcount'],
-    'SimilarWords': ['session', 'embedding'],
-    'TfidfScatter': ['session', 'wordcount'],
-}
 
 export const detailComponents = {
     'EmbeddingScatter': null,
@@ -33,4 +25,5 @@ export const detailComponents = {
     'TfidfScatter': null,
     'SimilarWords': DetailSimilarWords,
 }
+
 
