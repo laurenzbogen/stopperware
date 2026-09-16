@@ -14,7 +14,7 @@ class JobState:
         return {
             "jobStatus": "idle",
             "type": None,
-            "session": "",
+            "session_id": "",
             "process": None,
             "progress": 0,
             "payload": None,
@@ -27,28 +27,78 @@ class JobState:
         exclude = {"process", "future"}
         return {k: v for k, v in self._state.items() if k not in exclude}
 
+    def finish(self, process):
+        """Called once the worker process has exited."""
+        with self._lock:
+            if self._state["process"] is not process:
+                return
+            if process.returncode == 0:
+                self._state = self._default()
+            else:
+                self._state.update(
+                    {
+                        "jobStatus": "error",
+                        "process": None,
+                        "error": self._state.get("error")
+                        or f"worker exited with code {process.returncode}",
+                    }
+                )
+
+    def _heal_stale(self):
+        """If state says running but the process is gone, reset."""
+        p = self._state["process"]
+        if self._state["jobStatus"] == "running" and (
+            p is None or p.returncode is not None
+        ):
+            self._state = self._default()
 
     def reset(self):
         with self._lock:
             self._state = self._default()
 
-    def evaluate(self):
+    def getSessionId(self):
         with self._lock:
-            status = self._state["jobStatus"]
-            message = self.get_job_json()
+            return self._state['session_id']
 
-            # calculate, finished, message
+    def getState(self):
+        with self._lock:
+            self._heal_stale()
+            return self.get_job_json()
+
+    def evaluate(self, jobType, session_id):
+        with self._lock:
+            self._heal_stale()
+            status = self._state["jobStatus"]
+
+            # an old error must not block anyone: report it once to its owner, then clear
+            if status == "error":
+                if (
+                    session_id == self._state["session_id"]
+                    and jobType == self._state["type"]
+                ):
+                    message = self.get_job_json()
+                    self._state = self._default()
+                    message.update({"status_code": 510, "status": "ERROR"})
+                    return False, message
+                self._state = self._default()
+                status = "idle"
+
             if status == "running":
+                if session_id != self._state["session_id"]:
+                    raise HTTPException(
+                        status_code=466,
+                        detail=f"A session is blocking the calculation for {session_id}",
+                    )
+                if jobType != self._state["type"]:
+                    raise HTTPException(
+                        status_code=465,
+                        detail=f"A different job is running while evaluating {jobType}",
+                    )
+                message = self.get_job_json()
                 message.update({"status_code": 210, "status": "INPROGRESS"})
                 return False, message
-            if status == "error":
-                message.update({
-                    "status_code": 500,
-                    "status": "ERROR",
-                })
-                return False, message
 
-            # status == "idle"
+            message = self.get_job_json()
             message.update({"status_code": 201, "status": "STARTING"})
             return True, message
 
@@ -56,11 +106,10 @@ class JobState:
         try:
             new_state = json.loads(line)
         except json.JSONDecodeError:
-            return  # or log and re-raise, depending on how strict you want to be
-
+            return
         with self._lock:
-            print(self._state['type'], new_state['type'])
-            if new_state['type'] == self._state['type']:
+            if new_state.get("type") == self._state["type"]:
+                new_state.pop("process", None)  # never let the worker overwrite this
                 self._state.update(new_state)
 
     async def try_start(self, job_type, h, process_name, *args):
@@ -83,9 +132,9 @@ class JobState:
                 {
                     "jobStatus": "running",
                     "type": job_type,
-                    "session": h,
+                    "session_id": h,
                     "progress": 0,
-                    "progressMessage": 'set in trystart',
+                    "progressMessage": "set in trystart",
                     "payload": None,
                     "process": process,
                 }
@@ -109,12 +158,3 @@ class JobState:
                     status_code=466,
                     detail=f"Error clearing expected process {expected_process}: {self._state}",
                 )
-
-    def check_state_to_request(self, request_type):
-        with self._lock:
-            if self._state["type"] != request_type and self._state["type"] != None:
-                raise HTTPException(
-                    status_code=465,
-                    detail=f"wrong job type for embedding calculation: {self._state}",
-                )
-        return True

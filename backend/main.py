@@ -52,7 +52,7 @@ def get_session_files(session_id) -> list:
 
     session_dir = UPLOAD_DIR / session_id / "files"
     if not session_dir.is_dir():
-        raise HTTPException(status_code=404, detail="Session not found")
+        raise HTTPException(status_code=567, detail="Session not found")
 
     files = []
     for path in session_dir.iterdir():
@@ -84,22 +84,31 @@ job_state = JobState()
 
 
 async def watch(proc, session_id):
-    while True:
-        line = await proc.stdout.readline()
-        if not line:
-            break
-        job_state.update_from_line(line)
+    try:
+        while True:
+            line = await proc.stdout.readline()
+            if not line:
+                break
+            job_state.update_from_line(line)
+    finally:
+        await proc.wait()
+        job_state.finish(proc)
 
 
 @app.post("/cancelCalculation")
-async def cancelCalculation():
+async def cancelCalculation(h: str = Depends(get_session_id)):
     process = job_state.get_process_if_running()
     if process is None:
         return "no process running"
-
+    print(h, job_state.getSessionId())
+    if h != job_state.getSessionId():
+        raise HTTPException(
+            status_code=572,
+            detail="Cant cancel a calculation that you dont own",
+        )
     process.terminate()
     await process.wait()
-
+    job_state.reset()
     return "cancelled"
 
 
@@ -144,8 +153,7 @@ async def get_wordcount(response: Response, h: str = Depends(get_session_id)):
             job_state.clear_process(p)
         return {"status": "AVAILABLE", "payload": counts.to_dict(orient="records")}
 
-    calculate, message = job_state.evaluate()
-    job_state.check_state_to_request("wordcount")
+    calculate, message = job_state.evaluate("wordcount", h)
     response.status_code = message["status_code"]
 
     if calculate:
@@ -208,15 +216,14 @@ async def embedding(response: Response, h: str = Depends(get_session_id)):
             job_state.clear_process(p)
         return {"status": "AVAILABLE", "payload": "model is ready"}
 
-    calculate, message = job_state.evaluate()
-    job_state.check_state_to_request("embedding")
+    calculate, message = job_state.evaluate("embedding", h)
     response.status_code = message["status_code"]
 
     if calculate:
         session_dir = UPLOAD_DIR / h
         files = [f["text"] for f in get_session_files(h)]
         with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as tmp:
-            tmp.writelines(files)
+            tmp.writelines("\n".join(files))
         tmp_path = tmp.name
 
         process = await job_state.try_start(
@@ -257,8 +264,7 @@ async def embeddingScatter(
             job_state.clear_process(p)
         return {"status": "AVAILABLE", "payload": payload}
 
-    calculate, message = job_state.evaluate()
-    job_state.check_state_to_request("embeddingScatter")
+    calculate, message = job_state.evaluate("embeddingScatter", h)
     response.status_code = message["status_code"]
 
     if calculate:
@@ -349,7 +355,7 @@ async def upload_savefile(response: Response, file: UploadFile = File(...)):
 
     save_path.unlink()
 
-    response.set_cookie(key="session_id", value=h, expires=None)
+    response.set_cookie(key="stopperware_session_id", value=h, expires=None)
     with open(extract_to / "state.json") as f:
         return json.load(f)
 
@@ -391,11 +397,30 @@ async def downloadSavefile(
 def status(
     response: Response, stopperware_session_id: str | None = Cookie(default=None)
 ):
-    response.set_cookie(key="stopperware_session_id", value=stopperware_session_id)
-    return {
-        "sessionId": stopperware_session_id,
-        "jobStatus": job_state.evaluate()[1]["jobStatus"],
-    }
+    if stopperware_session_id is None:
+        return "No corpus loaded in current session"
+
+    session_dir = UPLOAD_DIR / stopperware_session_id / "files"
+    if not session_dir.is_dir():
+        response.set_cookie(key="stopperware_session_id", value="aa")
+        raise HTTPException(
+            status_code=567,
+            detail="Session Files not in place clearing session",
+            headers={"set-cookie": 'stopperware_session_id=""; Max-Age=0; Path=/'},
+        )
+
+    current_state = job_state.getState()
+    job_status = current_state["jobStatus"]
+    job_session_id = current_state["session_id"]
+
+    if job_status == "error" and job_session_id != stopperware_session_id:
+        job_state.reset()
+        job_status = "idle"
+
+    if job_status == "running" and job_session_id != stopperware_session_id:
+        return {"sessionId": stopperware_session_id, "jobStatus": "blocked"}
+
+    return {"sessionId": stopperware_session_id, "jobStatus": job_status}
 
 
 #

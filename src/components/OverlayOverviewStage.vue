@@ -1,6 +1,6 @@
 <template>
-    <div class="font-typewriter h-screen flex flex-col pb-6">
-        <div class="flex items-center gap-2">
+    <div class="h-screen flex flex-col pb-6">
+        <div class="font-typewriter flex items-center gap-2">
             <img class="h-12 w-12" src="/favicon.png" alt="">
             <p class="text-primary">STOPPERWARE</p>
         </div>

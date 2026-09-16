@@ -56,16 +56,21 @@ export const useDependencyStore = defineStore('stopperwareDependencyData', () =>
         }
         const { sessionId, jobStatus } = await fetchApiJson('status')
         if (!sessionId) {
-            //TODO
-            return
-        }
-        if (jobStatus !== 'idle') {
+            console.log('no session attached')
             //TODO
             return
         }
 
+        if (jobStatus === 'blocked') {
+            console.log('different session is blocking the server. try again later')
+            return
+        }
+
         requestDependencies.value['session'].requestStatus = REQUEST_STATUS['AVAILABLE']
-        await calculateDependencies()
+
+        if (jobStatus === 'idle' || jobStatus === 'running') {
+            await calculateDependencies()
+        }
     })
 
     async function calculateDependencies() {
