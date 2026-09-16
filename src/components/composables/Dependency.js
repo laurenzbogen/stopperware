@@ -1,4 +1,5 @@
-import { fetchApiJson } from "@/helpers"
+import { fetchApiJson, apiStatusBadgeType, ApiError } from "@/helpers"
+import { useStatus } from "./useStatus"
 
 export const REQUEST_STATUS = {
     UNAVAILABLE: 'UNAVAILABLE',
@@ -56,7 +57,10 @@ export default class Dependency {
         } catch (err) {
             console.error(err)
             this.requestStatus = REQUEST_STATUS.ERRORED
-            this.errorMessage = err.message || String(err)
+            this.errorMessage = err.detail || err.message || String(err)
+
+            const badgeType = err instanceof ApiError ? apiStatusBadgeType(err.status) : 'error'
+            useStatus().setStatus(`${this.name}: ${this.errorMessage}`, badgeType)
         }
     }
 

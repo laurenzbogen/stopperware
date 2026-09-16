@@ -1,6 +1,7 @@
 <template>
     <CorpusPicker :enabled="globalDropzoneEnabled" />
     <Confirm v-if="confirmIsOpen" />
+    <Status />
 
     <div id="app" class="w-screen h-screen ">
         <zoompinch ref="zoompinchRef" v-model:transform="zoompinchTransform" :min-scale="0.1" :max-scale="4"
@@ -76,6 +77,7 @@ import { useKeyStore } from "@/components/composables/useKeyStore";
 import { useDataStore } from '@/components/composables/useDataStore';
 import { storeToRefs } from 'pinia';
 import Confirm from "./components/Confirm.vue";
+import Status from "./components/Status.vue";
 const dataStore = useDataStore()
 const { addPipeline, addStage, moveStage } = dataStore
 const { stagePipelines, stages, stopwords, editorData } = storeToRefs(dataStore)

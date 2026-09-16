@@ -1,8 +1,9 @@
 import { defineStore } from "pinia"
 import SuperJSON from 'superjson'
 import { computed, onMounted, ref, toRaw, watch } from 'vue'
-import { fetchApiJson } from "@/helpers"
+import { fetchApiJson, apiStatusBadgeType, ApiError } from "@/helpers"
 import Dependency from "./Dependency"
+import { useStatus } from "./useStatus"
 
 const filterScatter = (data, filterWordSet) => {
     return {
@@ -54,7 +55,17 @@ export const useDependencyStore = defineStore('stopperwareDependencyData', () =>
         if (Object.values(requestDependencies.value).every(v => v.requestStatus === REQUEST_STATUS['AVAILABLE'])) {
             return
         }
-        const { sessionId, jobStatus } = await fetchApiJson('status')
+
+        let statusResult
+        try {
+            statusResult = await fetchApiJson('status')
+        } catch (err) {
+            const badgeType = err instanceof ApiError ? apiStatusBadgeType(err.status) : 'error'
+            useStatus().setStatus(err.detail ?? err.message ?? String(err), badgeType)
+            return
+        }
+
+        const { sessionId, jobStatus } = statusResult ?? {}
         if (!sessionId) {
             console.log('no session attached')
             //TODO
@@ -62,7 +73,7 @@ export const useDependencyStore = defineStore('stopperwareDependencyData', () =>
         }
 
         if (jobStatus === 'blocked') {
-            console.log('different session is blocking the server. try again later')
+            useStatus().setStatus('Another session is currently using the server. Try again later.', 'warning')
             return
         }
 
@@ -113,11 +124,16 @@ export const useDependencyStore = defineStore('stopperwareDependencyData', () =>
     }
 
     async function cancelCalculation() {
-        const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/cancelCalculation`, {
-            method: "POST",
-            credentials: 'include'
-        });
-        const p = await res.json()
+        try {
+            await fetchApiJson('cancelCalculation', { method: 'POST' })
+        } catch (err) {
+            // No session yet (fresh browser, nothing to cancel) - not an error worth surfacing.
+            if (err instanceof ApiError && err.status === 400) {
+                return
+            }
+            const badgeType = err instanceof ApiError ? apiStatusBadgeType(err.status) : 'error'
+            useStatus().setStatus(err.detail ?? err.message ?? String(err), badgeType)
+        }
     }
 
     async function uploadCorpus(files) {
@@ -132,13 +148,18 @@ export const useDependencyStore = defineStore('stopperwareDependencyData', () =>
 
         requestDependencies.value['session'].requestStatus = REQUEST_STATUS['INPROGRESS']
         requestDependencies.value['session'].progress = 0.3
-        const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/uploadCorpus`, {
-            method: "POST",
-            body: formData,
-            credentials: 'include'
-        });
 
-        const p = await res.json()
+        let p
+        try {
+            p = await fetchApiJson('uploadCorpus', { method: 'POST', body: formData })
+        } catch (err) {
+            requestDependencies.value['session'].requestStatus = REQUEST_STATUS['ERRORED']
+            requestDependencies.value['session'].errorMessage = err.detail ?? err.message ?? String(err)
+            const badgeType = err instanceof ApiError ? apiStatusBadgeType(err.status) : 'error'
+            useStatus().setStatus(requestDependencies.value['session'].errorMessage, badgeType)
+            return
+        }
+
         if (p.status === "AVAILABLE") {
             requestDependencies.value['session'].requestStatus = REQUEST_STATUS['AVAILABLE']
         }

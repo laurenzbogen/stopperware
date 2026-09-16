@@ -10,10 +10,13 @@ import SuperJSON from 'superjson';
 import { inject, ref } from 'vue';
 import { useDataStore } from './composables/useDataStore';
 import { useDependencyStore } from './composables/useDependencyStore';
+import { useStatus } from './composables/useStatus';
+import { apiStatusBadgeType } from '@/helpers';
 
 
 const { initializeDataStore  } = useDataStore()
 const { uploadCorpus } = useDependencyStore()
+const { setStatus } = useStatus()
 
 
 const loading = ref(false)
@@ -44,6 +47,14 @@ async function handleCsvUpload(file) {
         body: formData,
         credentials: 'include'
     });
+
+    if (!response.ok) {
+        const body = await response.json().catch(() => null)
+        const detail = body?.detail ?? `Upload failed with status ${response.status}`
+        setStatus(detail, apiStatusBadgeType(response.status))
+        return
+    }
+
     const newData = await response.text()
     initializeDataStore(SuperJSON.parse(newData))
 
