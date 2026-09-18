@@ -21,7 +21,7 @@
 </template>
 
 <script setup>
-import { stageTypeMap } from '@/stageModules.js';
+import { stageTypeMap } from '@/stages.js';
 import { computed, inject, onMounted, watchEffect } from 'vue';
 
 

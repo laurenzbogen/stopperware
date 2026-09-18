@@ -33,7 +33,7 @@
 
 <script setup>
 import { onMounted, ref, useTemplateRef } from 'vue';
-import { stageTypeMap } from '@/stageModules';
+import { stageTypeMap } from '@/stages';
 import Fuse from 'fuse.js'
 
 const emit = defineEmits(['selected'])

@@ -1,3 +1,6 @@
+// Registry of stage modules: their component, optional detail component,
+// and the request dependencies they rely on. Add a new stage type here.
+
 import DetailSimilarWords from "./components/stages/details/DetailSimilarWords.vue";
 
 import EmbeddingScatter from "./components/stages/EmbeddingScatter.vue";
@@ -6,6 +9,8 @@ import SimilarWords from "./components/stages/SimilarWords.vue";
 import WordCloud from './components/stages/WordCloud.vue';
 import FuzzySearch from '@/components/stages/FuzzySearch.vue'
 import TfidfScatter from "./components/stages/TfidfScatter.vue";
+
+import { REQUEST_DEPENDENCIES as R_D } from './components/composables/requestDependencies';
 
 export const stageTypeMap = {
     EmbeddingScatter,
@@ -16,7 +21,6 @@ export const stageTypeMap = {
     TfidfScatter,
 }
 
-
 export const detailComponents = {
     'EmbeddingScatter': null,
     'WordCloud': null,
@@ -26,4 +30,15 @@ export const detailComponents = {
     'SimilarWords': DetailSimilarWords,
 }
 
+export const stageTypeDependencies = {
+    'EmbeddingScatter': [R_D.embeddingScatter],
+    'WordCloud': [R_D.wordcount],
+    'FuzzySearch': [R_D.wordcount],
+    'ImportStopwords': [R_D.wordcount],
+    'SimilarWords': [R_D.embedding],
+    'TfidfScatter': [R_D.wordcount, R_D.tfidfScatter],
+}
 
+export function dependenciesFor(type) {
+    return stageTypeDependencies[type] ?? []
+}

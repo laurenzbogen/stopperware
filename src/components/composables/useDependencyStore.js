@@ -3,6 +3,8 @@ import { computed, onMounted, ref, toRaw, watch } from 'vue'
 import { fetchApiJson, apiStatusBadgeType, delay } from "@/helpers"
 import Dependency from "./Dependency"
 import { useStatus } from "./useStatus"
+import { REQUEST_DEPENDENCIES } from "./requestDependencies"
+import { dependenciesFor } from "@/stages"
 
 
 export const useDependencyStore = defineStore('stopperwareDependencyData', () => {
@@ -171,31 +173,4 @@ export const useDependencyStore = defineStore('stopperwareDependencyData', () =>
 
     return { getMainDependencies, ensureDependencies, allDependenciesReady, getIsActiveSession, uploadCorpus, getFilteredDependencyData }
 })
-
-
-
-
-const defaultFilterFunction = (data, filterWordSet) => {
-    return data.filter(w => !filterWordSet.has(w.word))
-}
-export const REQUEST_DEPENDENCIES = {
-    wordcount: { name: 'wordcount', sync: true, hasData: true, filterData: defaultFilterFunction },
-    embedding: { name: 'embedding', sync: true, hasData: false },
-    embeddingScatter: { name: 'embeddingScatter', sync: true, hasData: true, filterData: defaultFilterFunction },
-    tfidfScatter: { name: 'tfidfScatter', sync: false, hasData: true, filterData: defaultFilterFunction },
-}
-
-const R_D = REQUEST_DEPENDENCIES
-export const stageTypeDependencies = {
-    'EmbeddingScatter': [R_D.embeddingScatter],
-    'WordCloud': [R_D.wordcount],
-    'FuzzySearch': [R_D.wordcount],
-    'ImportStopwords': [R_D.wordcount],
-    'SimilarWords': [R_D.embedding],
-    'TfidfScatter': [R_D.wordcount, R_D.tfidfScatter],
-}
-
-function dependenciesFor(type) {
-    return stageTypeDependencies[type] ?? []
-}
 

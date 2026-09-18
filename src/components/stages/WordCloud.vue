@@ -19,7 +19,8 @@ import { EDITMODES } from '@/helpers';
 
 import { useDataStore } from '@/components/composables/useDataStore';
 import { storeToRefs } from 'pinia';
-import { REQUEST_DEPENDENCIES, useDependencyStore } from '../composables/useDependencyStore';
+import { useDependencyStore } from '../composables/useDependencyStore';
+import { REQUEST_DEPENDENCIES } from '../composables/requestDependencies';
 
 const dataStore = useDataStore()
 const { stages, selectionGroups } = storeToRefs(dataStore)
