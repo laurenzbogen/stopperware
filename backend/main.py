@@ -1,20 +1,11 @@
-import asyncio
-import hashlib
-import json
-import multiprocessing as mp
-import os
-import shutil
-import tempfile
-import zipfile
-from concurrent.futures import ProcessPoolExecutor
-from pathlib import Path
-from typing import List
-
-import fasttext
-import numpy as np
 import pandas as pd
+import hashlib
+import shutil
+from typing import List
+from job_state import JobState
+from pathlib import Path
 from fastapi import (
-    Body,
+    status,
     Cookie,
     Depends,
     FastAPI,
@@ -23,93 +14,90 @@ from fastapi import (
     Response,
     UploadFile,
 )
-from fastapi.background import BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
-from sklearn.decomposition import TruncatedSVD
-from sklearn.preprocessing import MinMaxScaler, StandardScaler
-
-from job_state import JobState
 
 UPLOAD_DIR = Path("./tmp")
 app = FastAPI(title="Stopword API")
-ctx = mp.get_context("spawn")
-executor = ProcessPoolExecutor(max_workers=2, mp_context=ctx)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["Content-Disposition"],
 )
 
-
-def get_session_files(session_id) -> list:
-    if not session_id:
-        raise HTTPException(status_code=400, detail="Missing session_id cookie")
-
-    session_dir = UPLOAD_DIR / session_id / "files"
-    if not session_dir.is_dir():
-        raise HTTPException(status_code=567, detail="Session not found")
-
-    files = []
-    for path in session_dir.iterdir():
-        if not path.is_file():
-            continue
-        try:
-            text = path.read_text(encoding="utf-8", errors="ignore")
-        except Exception:
-            continue
-
-        files.append({"name": path.name, "text": text})
-
-    return files
+server_job = JobState()
 
 
-def get_session_id(stopperware_session_id: str | None = Cookie(default=None)) -> str:
-    if not stopperware_session_id:
-        raise HTTPException(status_code=400, detail="Missing session_id cookie")
-
+def get_session_id(stopperware_session_id=Cookie(default=None)):
     return stopperware_session_id
 
 
-def get_cached_model(h: str = Depends(get_session_id)):
-    model_path = UPLOAD_DIR / h / "model.bin"
-    return fasttext.load_model(str(model_path)) if model_path.is_file() else None
-
-
-job_state = JobState()
-
-
-async def watch(proc, session_id):
-    try:
-        while True:
-            line = await proc.stdout.readline()
-            if not line:
-                break
-            job_state.update_from_line(line)
-    finally:
-        await proc.wait()
-        job_state.finish(proc)
-
-
-@app.post("/cancelCalculation")
-async def cancelCalculation(h: str = Depends(get_session_id)):
-    process = job_state.get_process_if_running()
-    if process is None:
-        return "no process running"
-    print(h, job_state.getSessionId())
-    if h != job_state.getSessionId():
+def try_get_session_or_raise_and_clear(session_id):
+    session_dir = UPLOAD_DIR / session_id / "files"
+    if not session_dir.is_dir():
         raise HTTPException(
-            status_code=572,
-            detail="Cant cancel a calculation that you dont own",
+            status_code=561,
+            detail="Session Files not in place clearing session",
+            headers={"set-cookie": 'stopperware_session_id=""; Max-Age=0; Path=/'},
         )
-    process.terminate()
-    await process.wait()
-    job_state.reset()
-    return "cancelled"
+
+
+@app.get("/status")
+def get_status(session_id=Depends(get_session_id)):
+    if server_job.is_blocking_to_session(session_id):
+        return {
+            "status": "JOB_BLOCKING",
+            "message": "Running ob belongs to different session",
+        }
+
+    if session_id is None:
+        return {
+            "status": "NO_SESSION_ID",
+            "message": "No corpus loaded in current session",
+        }
+
+    if server_job.is_idle():
+        return {"status": "SERVER_IDLE", "message": "No Jobs Running"}
+
+    return {
+        "status": "JOB_ATTACHABLE",
+        "message": "Running job belongs to current session",
+    }
+
+
+@app.get("/session")
+def get_session(response: Response, session_id=Depends(get_session_id)):
+    if session_id is None:
+        return {"session": "NO_SESSION"}
+    session_dir = UPLOAD_DIR / session_id / "files"
+    if not session_dir.is_dir():
+        response.delete_cookie("stopperware_session_id")
+        return {"session": "STALE_SESSION"}
+    return {"session": "ACTIVE_SESSION"}
+
+
+@app.get("/dependency/{dependency}")
+async def dependency(dependency: str, session_id=Depends(get_session_id)):
+    cached = return_if_cached(dependency, session_id)
+    if cached is not None:
+        server_job.reset(session_id)
+        return {
+            "status": "DEPENDENCY_AVAILABLE",
+            "name": dependency,
+            "data": cached,
+        }
+
+    if server_job.is_errored():
+        response = server_job.serialize_job_state(session_id)
+        server_job.try_cancel_process()
+        server_job.reset(session_id)
+        return response
+
+    await server_job.start_or_attach(
+        dependency, session_id, DEPENDENCY_DICT[dependency][2]
+    )
+
+    return server_job.serialize_job_state(session_id)
 
 
 @app.post("/uploadCorpus")
@@ -122,7 +110,7 @@ async def upload_files(
 
     for f in files:
         firstlines += f.file.readline()
-        # size = f.size  # in bytes, may be None in some cases
+        size += f.size
 
     h = hashlib.sha256(firstlines + str(size).encode()).hexdigest()
     process_files(files, h)
@@ -131,133 +119,15 @@ async def upload_files(
     return {"status": "AVAILABLE", "payload": h}
 
 
-@app.get("/wordcount")
-async def get_wordcount(response: Response, h: str = Depends(get_session_id)):
-    cached_path = Path(UPLOAD_DIR) / h / "wordcount.csv"
-    if cached_path.exists():
-        print("cached_path_exists")
-        df = pd.read_csv(
-            cached_path,
-            index_col=0,
-            keep_default_na=False,
-            na_values=["", "NA", "NULL"],
-        )
-        counts = df.sum(axis=0).reset_index()
-        counts.columns = ["word", "count"]
-        counts = counts.sort_values("count", ascending=False)
+@app.get("/cancelCalculation")
+def cancel_calculation(session_id=Depends(get_session_id)):
+    if server_job.is_blocking_to_session(session_id):
+        raise HTTPException(detail="Current Job is not owned by session")
 
-        p = job_state.get_process_if_running()
-        if p is None:
-            job_state.reset()
-        else:
-            job_state.clear_process(p)
-        return {"status": "AVAILABLE", "payload": counts.to_dict(orient="records")}
-
-    calculate, message = job_state.evaluate("wordcount", h)
-    response.status_code = message["status_code"]
-
-    if calculate:
-        process = await job_state.try_start(
-            "wordcount", h, "workers/calc_wordcount.py", h
-        )
-        asyncio.create_task(watch(process, h))
-
-        print(process)
-
-    return message
-
-
-@app.get("/tfidf")
-def tfidf(h: str = Depends(get_session_id)):
-
-    return {"status": "AVAILABLE", "payload": r.iloc[:500].to_dict(orient="records")}
-
-
-@app.get("/embedding")
-async def embedding(response: Response, h: str = Depends(get_session_id)):
-
-    cached_path = Path(UPLOAD_DIR) / h / "model.bin"
-    if cached_path.exists():
-        print("cached_path_exists")
-        p = job_state.get_process_if_running()
-        if p is None:
-            job_state.reset()
-        else:
-            job_state.clear_process(p)
-        return {"status": "AVAILABLE", "payload": "model is ready"}
-
-    calculate, message = job_state.evaluate("embedding", h)
-    response.status_code = message["status_code"]
-
-    if calculate:
-        session_dir = UPLOAD_DIR / h
-        files = [f["text"] for f in get_session_files(h)]
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as tmp:
-            tmp.writelines("\n".join(files))
-        tmp_path = tmp.name
-
-        process = await job_state.try_start(
-            "embedding",
-            h,
-            "workers/calc_embedding.py",
-            str(tmp_path),
-            str((session_dir / "model.bin").resolve()),
-        )
-
-        asyncio.create_task(watch(process, h))
-
-    return message
-
-
-@app.get("/embeddingScatter")
-async def embeddingScatter(
-    response: Response,
-    h=Depends(get_session_id),
-):
-    cached_path = Path(UPLOAD_DIR) / h / "embedding_scatter.csv"
-
-    if cached_path.exists():
-        print("cached_path_exists")
-        positions = pd.read_csv(
-            cached_path,
-            index_col=0,
-            keep_default_na=False,
-            na_values=["", "NA", "NULL"],
-        )
-
-        payload = positions[["word", "count", "x", "y"]].to_dict(orient="records")
-
-        p = job_state.get_process_if_running()
-        if p is None:
-            job_state.reset()
-        else:
-            job_state.clear_process(p)
-        return {"status": "AVAILABLE", "payload": payload}
-
-    calculate, message = job_state.evaluate("embeddingScatter", h)
-    response.status_code = message["status_code"]
-
-    if calculate:
-        process = await job_state.try_start(
-            "embeddingScatter", h, "workers/calc_embedding_scatter.py", h
-        )
-        asyncio.create_task(watch(process, h))
-
-    return message
-
-
-@app.get("/embeddingSimilar/{similarKey}")
-def embeddingSimilar(similarKey: str, h=Depends(get_session_id)):
-    model_path = UPLOAD_DIR / h / "model.bin"
-    if not model_path.is_file():
-        raise HTTPException(
-            status_code=400, detail=f"Embedding model couldnt be loaded"
-        )
-    model = fasttext.load_model(str(model_path)) if model_path.is_file() else None
-
+    server_job.try_cancel_process()
     return {
-        "status": "AVAILABLE",
-        "payload": model.get_nearest_neighbors(similarKey, k=20),
+        "status": "JOB_CANCELLED",
+        "message": "Cancelled job succesfully",
     }
 
 
@@ -274,188 +144,50 @@ def process_files(files: List[UploadFile], h: str):
             f.file.close()
 
 
-def safe_extract(zf: zipfile.ZipFile, target_dir: Path):
-    """Extract a zip file while preventing path traversal (zip-slip)."""
-    target_dir = target_dir.resolve()
+def return_wordcount(path):
+    df = pd.read_csv(
+        path,
+        index_col=0,
+        keep_default_na=False,
+        na_values=["", "NA", "NULL"],
+    )
+    counts = df.sum(axis=0).reset_index()
+    counts.columns = ["word", "count"]
+    counts = counts.sort_values("count", ascending=False)
+    return counts.to_dict(orient="records")
 
-    for member in zf.namelist():
-        member_path = (target_dir / member).resolve()
-
-        # Ensure the resolved path is still inside target_dir
-        if (
-            not str(member_path).startswith(str(target_dir) + os.sep)
-            and member_path != target_dir
-        ):
-            raise HTTPException(status_code=400, detail=f"Unsafe path in zip: {member}")
-
-    zf.extractall(target_dir)
-
-
-@app.post("/uploadSavefile")
-async def upload_savefile(response: Response, file: UploadFile = File(...)):
-    filename = file.filename or ""
-    is_zip_ext = filename.lower().endswith(".zip")
-
-    save_path = UPLOAD_DIR / filename
-    with open(save_path, "wb") as f:
-        content = await file.read()
-        f.write(content)
-
-    if not zipfile.is_zipfile(save_path):
-        if is_zip_ext:
-            raise HTTPException(
-                status_code=400,
-                detail="File has .zip extension but is not a valid zip archive",
-            )
-        return {
-            "filename": filename,
-            "extracted": False,
-            "message": "Not a zip file, saved as-is",
-        }
-
-    h = save_path.stem
-    extract_to = UPLOAD_DIR / h
-    extract_to.mkdir(exist_ok=True)
-
-    try:
-        with zipfile.ZipFile(save_path, "r") as zf:
-            safe_extract(zf, extract_to)
-    except zipfile.BadZipFile:
-        raise HTTPException(status_code=400, detail="Corrupt zip file")
-
-    save_path.unlink()
-
-    response.set_cookie(key="stopperware_session_id", value=h, expires=None)
-    with open(extract_to / "state.json") as f:
-        return json.load(f)
+def return_embedding(path):
+    return 'Embedding Calculated'
 
 
-@app.post("/downloadSavefile")
-async def downloadSavefile(
-    background_tasks: BackgroundTasks,
-    state: dict = Body(...),
-    h: str = Depends(get_session_id),
-):
-    dir_path = UPLOAD_DIR / h
-    if not dir_path.is_dir():
-        raise HTTPException(status_code=404, detail="Directory not found")
-
-    tmp_dir = tempfile.mkdtemp()
-    background_tasks.add_task(shutil.rmtree, tmp_dir, ignore_errors=True)
-
-    # Copy the upload dir into a staging area so we don't write into the real dir
-    staging_dir = os.path.join(tmp_dir, "staging")
-    shutil.copytree(dir_path, staging_dir)
-
-    # Write the app state JSON at the top level of the staged copy
-    state_path = os.path.join(staging_dir, "state.json")
-    with open(state_path, "w") as f:
-        json.dump(state, f, indent=2)
-
-    zip_base = os.path.join(tmp_dir, h)
-    zip_path = shutil.make_archive(zip_base, "zip", root_dir=staging_dir)
-
-    return FileResponse(
-        path=zip_path,
-        filename=f"{h}.zip",
-        media_type="application/zip",
-        background=background_tasks,
+def return_scatter(path):
+    positions = pd.read_csv(
+        path,
+        index_col=0,
+        keep_default_na=False,
+        na_values=["", "NA", "NULL"],
     )
 
+    return positions.to_dict(orient="records")
 
-@app.get("/status")
-def status(
-    response: Response, stopperware_session_id: str | None = Cookie(default=None)
-):
-    if stopperware_session_id is None:
-        return "No corpus loaded in current session"
+# Cache Path, Cache Parse Func, Calculation Func
+DEPENDENCY_DICT = {
+    "wordcount": ["wordcount.csv", return_wordcount, "workers/calc_wordcount.py"],
+    "embedding": ["model.bin", return_embedding, "workers/calc_embedding.py"],
+    "embeddingScatter": ["embedding_scatter.csv", return_scatter, "workers/calc_embedding_scatter.py"],
+    "tfidfScatter": ["tfidf_scatter.csv", return_scatter, "workers/calc_tfidf_scatter.py"],
+}
 
-    session_dir = UPLOAD_DIR / stopperware_session_id / "files"
-    if not session_dir.is_dir():
-        response.set_cookie(key="stopperware_session_id", value="aa")
+
+def return_if_cached(dependency, session_id):
+    try:
+        dependency_path, c_function, _ = DEPENDENCY_DICT[dependency]
+    except KeyError:
         raise HTTPException(
-            status_code=567,
-            detail="Session Files not in place clearing session",
-            headers={"set-cookie": 'stopperware_session_id=""; Max-Age=0; Path=/'},
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail=f"Dependency '{dependency}' is not implemented",
         )
-
-    current_state = job_state.getState()
-    job_status = current_state["jobStatus"]
-    job_session_id = current_state["session_id"]
-
-    if job_status == "error" and job_session_id != stopperware_session_id:
-        job_state.reset()
-        job_status = "idle"
-
-    if job_status == "running" and job_session_id != stopperware_session_id:
-        return {"sessionId": stopperware_session_id, "jobStatus": "blocked"}
-
-    return {"sessionId": stopperware_session_id, "jobStatus": job_status}
-
-
-#
-# @app.get("/similar/{h}/{word}")
-# def calc_embedding_similar(h: str, word: str):
-#     model = get_model_or_throw(h)
-#     return model.get_nearest_neighbors(word, k=2000)[:10]
-#
-#
-#
-#
-# # import numpy as np
-# # from bertopic import BERTopic
-# # from umap import UMAP
-# # from hdbscan import HDBSCAN  # <--- Need this import
-# #
-# # # 1. Prepare data and embeddings
-# # cleaned_docs = [doc.replace("\n", " ").strip() for doc in docs]
-# # embeddings = np.array([model.get_sentence_vector(doc) for doc in cleaned_docs])
-# #
-# # # 2. Relax UMAP for small data
-# # custom_umap = UMAP(n_neighbors=5, n_components=5, min_dist=0.0, metric='cosine', random_state=42)
-# #
-# # # 3. Relax HDBSCAN so it accepts tiny clusters (Crucial Step!)
-# # custom_hdbscan = HDBSCAN(
-# #     min_cluster_size=3,       # Smallest group that can form a topic (changed from 10)
-# #     min_samples=1,            # How strict the clustering is (lower = fewer outliers)
-# #     prediction_data=True
-# # )
-# #
-# # # 4. Combine them into BERTopic
-# # topic_model = BERTopic(umap_model=custom_umap, hdbscan_model=custom_hdbscan)
-# # topics, probs = topic_model.fit_transform(docs, embeddings)
-# # topics, probs
-# #
-# # topic_info = topic_model.get_topic_info()
-# # topic_info
-# #
-# # topic_0_words = topic_model.get_topic(0)
-# # print(topic_0_words)
-#
-#
-# def get_files(folder_path):
-#     results = []
-#     # Convert string path to a Path object
-#     path = Path(folder_path)
-#
-#     # .glob("*.txt") finds all text files in the directory
-#     for file_path in path.glob("*.txt"):
-#         # Read the contents of the file as a string
-#         contents = file_path.read_text(encoding="utf-8")
-#
-#         results.append({
-#             "filename": file_path.name,          # e.g., "notes.txt"
-#             "size": file_path.stat().st_size,    # File size in bytes
-#             "content_type": "text/plain",        # Hardcoded for .txt files
-#             "content": contents,
-#         })
-#
-#     return results
-#
-# # file_dicts = get_files('/Users/laurenzbogen/_1projects/Bachelorarbeit/Geste/txt/norm')
-#
-#
-#
-@app.get("/health")
-def health():
-    return {"status": "ok"}
+    path = UPLOAD_DIR / session_id / dependency_path
+    if path.exists():
+        return c_function(path)
+    return None

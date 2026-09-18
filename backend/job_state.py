@@ -8,99 +8,80 @@ from fastapi import HTTPException
 class JobState:
     def __init__(self):
         self._lock = threading.RLock()
-        self._state = self._default()
+        self._watcher = None
+        self._reset_state()
 
-    def _default(self):
-        return {
-            "jobStatus": "idle",
-            "type": None,
-            "session_id": "",
-            "process": None,
-            "progress": 0,
-            "payload": None,
-            "progressMessage": "",
-            "error": None,
-            "future": None,
-        }
+    def _reset_state(self):
+        self._session_id = None
+        self._calculation_type = None
+        self._process = None
+        self._progress = 0
+        self._progress_message = ""
+        self._errored = False
+        self._error_message = None
 
-    def get_job_json(self):
-        exclude = {"process", "future"}
-        return {k: v for k, v in self._state.items() if k not in exclude}
-
-    def finish(self, process):
-        """Called once the worker process has exited."""
+    def is_idle(self):
         with self._lock:
-            if self._state["process"] is not process:
-                return
-            if process.returncode == 0:
-                self._state = self._default()
-            else:
-                self._state.update(
-                    {
-                        "jobStatus": "error",
-                        "process": None,
-                        "error": self._state.get("error")
-                        or f"worker exited with code {process.returncode}",
-                    }
-                )
+            return self._process is None
 
-    def _heal_stale(self):
-        """If state says running but the process is gone, reset."""
-        p = self._state["process"]
-        if self._state["jobStatus"] == "running" and (
-            p is None or p.returncode is not None
-        ):
-            self._state = self._default()
-
-    def reset(self):
+    def is_errored(self):
         with self._lock:
-            self._state = self._default()
+            return self._errored
 
-    def getSessionId(self):
+    def is_blocking_to_session(self, session_id_or_null):
         with self._lock:
-            return self._state['session_id']
-
-    def getState(self):
-        with self._lock:
-            self._heal_stale()
-            return self.get_job_json()
-
-    def evaluate(self, jobType, session_id):
-        with self._lock:
-            self._heal_stale()
-            status = self._state["jobStatus"]
-
-            # an old error must not block anyone: report it once to its owner, then clear
-            if status == "error":
-                if (
-                    session_id == self._state["session_id"]
-                    and jobType == self._state["type"]
-                ):
-                    message = self.get_job_json()
-                    self._state = self._default()
-                    message.update({"status_code": 510, "status": "ERROR"})
-                    return False, message
-                self._state = self._default()
-                status = "idle"
-
-            if status == "running":
-                if session_id != self._state["session_id"]:
-                    raise HTTPException(
-                        status_code=466,
-                        detail=f"A session is blocking the calculation for {session_id}",
+            if self._process is None:
+                if self._session_id is not None:
+                    raise AssertionError(
+                        "Process is none, but Job State is not initialized!"
                     )
-                if jobType != self._state["type"]:
-                    raise HTTPException(
-                        status_code=465,
-                        detail=f"A different job is running while evaluating {jobType}",
-                    )
-                message = self.get_job_json()
-                message.update({"status_code": 210, "status": "INPROGRESS"})
-                return False, message
+                return False
+            return self._session_id != session_id_or_null
 
-            message = self.get_job_json()
-            message.update({"status_code": 201, "status": "STARTING"})
-            return True, message
+    def try_cancel_process(self):
+        with self._lock:
+            if self._process is not None and self._process.returncode is None:
+                self._process.terminate()
+
+    async def start_or_attach(self, dependency, session_id, worker):
+        if self.is_idle():
+            try:
+                await self.try_start_process(dependency, session_id, worker)
+            except:
+                # TODO
+                pass
+        else:
+            print('Attaching to running calculation')
+
+    async def try_start_process(self, dependency, session_id, worker):
+        process = await asyncio.create_subprocess_exec(
+            "python",
+            worker,
+            session_id,
+            stdout=asyncio.subprocess.PIPE,
+        )
+        with self._lock:
+            self._process = process
+            self._session_id = session_id
+            self._calculation_type = dependency
+            self._watcher = asyncio.create_task(self.watch_process(process))
+
+
+    async def watch_process(self, process):
+        try:
+            while True:
+                line = await process.stdout.readline()
+                print(line)
+                if not line:
+                    break
+                self.update_from_line(line)
+        finally:
+            await process.wait()
+            with self._lock:
+                if self._process is process:
+                    if process.returncode != 0:
+                        self._errored = True
+                        self._error_message = f"Worker exited with code {process.returncode}"
 
     def update_from_line(self, line):
         try:
@@ -108,53 +89,48 @@ class JobState:
         except json.JSONDecodeError:
             return
         with self._lock:
-            if new_state.get("type") == self._state["type"]:
-                new_state.pop("process", None)  # never let the worker overwrite this
-                self._state.update(new_state)
-
-    async def try_start(self, job_type, h, process_name, *args):
-        with self._lock:
-            if self._state["jobStatus"] != "idle":
-                print("already running")
-                raise HTTPException(
-                    status_code=423,
-                    detail=f"job not idle: {self._state}",
+            try:
+                if self._process is None:
+                    raise AssertionError('Got a process update line while no process was defined in job_state')
+                self._session_id = new_state["session_id"]
+                self._calculation_type = new_state["calculation_type"]
+                self._progress = new_state.get("progress", self._progress)
+                self._progress_message = new_state.get(
+                    "progress_message", self._progress_message
+                )
+                self._errored = new_state.get("errored", self._errored)
+                self._error_message = new_state.get(
+                    "error_message", self._error_message
+                )
+            except:
+                self._errored = True
+                self._error_message = (
+                    "Error updating server state from subprocess pipe text"
                 )
 
-            process = await asyncio.create_subprocess_exec(
-                "python",
-                process_name,
-                *args,
-                stdout=asyncio.subprocess.PIPE,
-            )
-
-            self._state.update(
-                {
-                    "jobStatus": "running",
-                    "type": job_type,
-                    "session_id": h,
-                    "progress": 0,
-                    "progressMessage": "set in trystart",
-                    "payload": None,
-                    "process": process,
-                }
-            )
-            return process
-
-    def get_process_if_running(self):
+    def reset(self, session_id):
         with self._lock:
-            process = self._state["process"]
-            if process is not None and process.returncode is None:
-                return process
-            return None
+            if self._session_id is not None and self._session_id != session_id:
+                raise AssertionError("Session Ids dont match on Server Job Reset call")
+            self._reset_state()
 
-    def clear_process(self, expected_process):
+    def serialize_job_state(self, session_id):
+        if self.is_blocking_to_session(session_id):
+            return {
+                "status": "JOB_BLOCKING",
+                "message": "Running ob belongs to different session",
+            }
+
+        status_message = "JOB_RUNNING" if not self._errored else "JOB_ERRORED"
+        return {
+            "status": status_message,
+            "type": self._calculation_type,
+            "progress": self._progress,
+            "progressMessage": self._progress_message,
+            "errored": self._errored,
+            "errorMessage": self._error_message,
+        }
+
+    def test_function(self):
         with self._lock:
-            if self._state["process"] is expected_process:
-                self._state["process"] = None
-                self.reset()
-            else:
-                raise HTTPException(
-                    status_code=466,
-                    detail=f"Error clearing expected process {expected_process}: {self._state}",
-                )
+            self._session_id = "sessionid123"
