@@ -1,5 +1,4 @@
-import { fetchApiJson, apiStatusBadgeType, delay } from "@/helpers"
-import { useStatus } from "./useStatus"
+import { fetchApiJson, delay } from "@/helpers"
 
 export const REQUEST_STATUS = {
     UNAVAILABLE: 'UNAVAILABLE',

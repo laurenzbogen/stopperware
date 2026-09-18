@@ -1,6 +1,6 @@
 import { defineStore } from "pinia"
 import { computed, onMounted, ref, toRaw, watch } from 'vue'
-import { fetchApiJson, apiStatusBadgeType, delay } from "@/helpers"
+import { fetchApiJson } from "@/helpers"
 import Dependency from "./Dependency"
 import { useStatus } from "./useStatus"
 import { REQUEST_DEPENDENCIES } from "./requestDependencies"

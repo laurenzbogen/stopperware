@@ -72,55 +72,8 @@ export function getInitData() {
     return initData
 }
 
-
 export function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms))
-}
-
-
-// Custom (non-standard) HTTP status codes the backend uses for job-state
-// signaling, see backend/main.py and backend/job_state.py.
-export const API_STATUS_CODES = {
-    NOSESSIONID: 260,
-    SERVERISIDLE: 261,
-
-
-
-
-
-
-    STARTING: 201,
-    INPROGRESS: 210,
-    BAD_REQUEST: 400,
-    NOT_FOUND: 404,
-    JOB_NOT_IDLE: 423,
-    DIFFERENT_JOB_RUNNING: 465,
-    SESSION_BLOCKED: 466,
-    JOB_ERROR: 510,
-    SESSION_NOT_FOUND: 567,
-    CANCEL_NOT_OWNED: 572,
-}
-
-// Severity a badge should use for a given (non-2xx) API status code.
-export function apiStatusBadgeType(status) {
-    switch (status) {
-        case API_STATUS_CODES.JOB_NOT_IDLE:
-        case API_STATUS_CODES.DIFFERENT_JOB_RUNNING:
-        case API_STATUS_CODES.SESSION_BLOCKED:
-        case API_STATUS_CODES.SESSION_NOT_FOUND:
-            return 'warning'
-        default:
-            return 'error'
-    }
-}
-
-class ApiError extends Error {
-    constructor(status, detail) {
-        super(detail)
-        this.name = 'ApiError'
-        this.status = status
-        this.detail = detail
-    }
 }
 
 export async function fetchApiJson(endpoint, options = {}) {

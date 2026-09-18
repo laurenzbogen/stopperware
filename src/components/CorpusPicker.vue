@@ -11,7 +11,6 @@ import { inject, ref } from 'vue';
 import { useDataStore } from './composables/useDataStore';
 import { useDependencyStore } from './composables/useDependencyStore';
 import { useStatus } from './composables/useStatus';
-import { apiStatusBadgeType } from '@/helpers';
 import { useConfirm } from './composables/useConfirm';
 
 
@@ -49,7 +48,6 @@ async function handleCsvUpload(file) {
     if (!response.ok) {
         const body = await response.json().catch(() => null)
         const detail = body?.detail ?? `Upload failed with status ${response.status}`
-        setStatus(detail, apiStatusBadgeType(response.status))
         return
     }
 
