@@ -64,6 +64,10 @@ function pointInPathPolygon([x, y], path) {
     for (let i = 0, j = path.length - 1; i < path.length; j = i++) {
         const [xi, yi] = path[i];
         const [xj, yj] = path[j];
+        //First check if point is relevant to edge in the y direction ((yi > y) !== (yj > y))
+        //Then just check if its left to the edge
+        //check how many edges are directly right to polygon, if its odd (inside flipped once)
+        //then point is polygon
         if (((yi > y) !== (yj > y)) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) {
             inside = !inside;
         }

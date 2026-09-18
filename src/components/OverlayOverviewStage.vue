@@ -83,6 +83,7 @@ const { undo, redo } = refHistoryFuncs
 const orderedPipelines = computed(() => [...stagePipelines.value.values()].sort((a, b) => a.position - b.position))
 
 const sizeReduction = computed(() => {
+    return 0
     const d = requestDependencies.value['wordcount']
     if (d.requestStatus !== REQUEST_STATUS.AVAILABLE) return null
     const wordcount = d.data
@@ -143,6 +144,7 @@ function getFilename(response) {
 
 import { useConfirm } from '@/components/composables/useConfirm'
 async function handleClickedNewSession() {
+
     const { confirm } = useConfirm()
     const ok = await confirm('Are you sure you want to start a new session? Consider saving your old session')
     if (ok) {

@@ -12,17 +12,15 @@ import { useDataStore } from './composables/useDataStore';
 import { useDependencyStore } from './composables/useDependencyStore';
 import { useStatus } from './composables/useStatus';
 import { apiStatusBadgeType } from '@/helpers';
+import { useConfirm } from './composables/useConfirm';
 
 
-const { initializeDataStore  } = useDataStore()
-const { uploadCorpus } = useDependencyStore()
+const { initializeDataStore } = useDataStore()
+const { uploadCorpus, getIsActiveSession } = useDependencyStore()
 const { setStatus } = useStatus()
 
 
-const loading = ref(false)
 const { enabled } = defineProps(['enabled'])
-
-
 
 async function onDrop(files) {
     if (!enabled) return
@@ -62,9 +60,14 @@ async function handleCsvUpload(file) {
 }
 
 async function handleTxtUpload(files) {
-    loading.value = true
-    await uploadCorpus(files)
-    loading.value = false
+    if (! await getIsActiveSession())
+        return await uploadCorpus(files)
+
+    const { confirm } = useConfirm()
+    const ok = await confirm('This will replace the currently loaded session are you sure?')
+    if (ok) {
+        await uploadCorpus(files)
+    }
 }
 
 const { isOverDropZone } = useDropZone(window.document, {

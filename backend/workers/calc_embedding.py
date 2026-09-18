@@ -1,3 +1,4 @@
+import tempfile
 import sys
 import fasttext
 import json
@@ -5,6 +6,35 @@ import re
 import os
 from time import time
 import threading
+from pathlib import Path
+
+
+UPLOAD_DIR = Path("./tmp")
+
+
+def get_files(session_id):
+    session_dir = UPLOAD_DIR / session_id / "files"
+    if not session_dir.exists():
+        emit(
+            session_id=session_id,
+            errored=True,
+            error_message=f"Cant find any files while calculating wordcount",
+        )
+    files = []
+    for path in session_dir.iterdir():
+        try:
+            text = path.read_text(encoding="utf-8", errors="ignore")
+        except:
+            emit(
+                session_id=session_id,
+                errored=True,
+                error_message=f"Error reading file at {path}",
+            )
+
+        files.append({"name": path.name, "text": text})
+
+    return files
+
 
 PROGRESS_RE = re.compile(
     r"Progress:\s*([\d.]+)%\s*words/sec/thread:\s*(\d+)\s*"
@@ -28,7 +58,7 @@ def _parse_line(line):
 
 
 def emit(**kwargs):
-    kwargs['type'] = 'embedding'
+    kwargs["calculation_type"] = "embedding"
     sys.stdout.write(json.dumps(kwargs) + "\n")
     sys.stdout.flush()
 
@@ -39,7 +69,7 @@ class ProgressWatcher:
     output can be parsed, and restores it cleanly on close().
     """
 
-    def __init__(self):
+    def __init__(self, session_id):
         self._read_fd, self._write_fd = os.pipe()
         self._saved_stderr_fd = os.dup(2)
         os.dup2(self._write_fd, 2)
@@ -47,6 +77,7 @@ class ProgressWatcher:
 
         self._thread = threading.Thread(target=self._reader, daemon=True)
         self._thread.start()
+        self._session_id = session_id
 
     def _reader(self):
         buf = b""
@@ -61,7 +92,11 @@ class ProgressWatcher:
                     parsed = _parse_line(line.decode(errors="ignore"))
                     if parsed and time() - last_time > 0.5:
                         last_time = time()
-                        emit(jobStatus="running", progress=parsed["progress"], progressMessage="set in embedding _reader")
+                        emit(
+                            session_id=self._session_id,
+                            progress=parsed["progress"],
+                            progress_message="Training Embedding..",
+                        )
 
     def close(self):
         # Restore the real stderr onto fd 2. This closes the pipe's
@@ -74,18 +109,26 @@ class ProgressWatcher:
         self._thread.join(timeout=5)
 
 
-def train_worker(input_path: str, model_path: str):
-    watcher = ProgressWatcher()
+def train_worker(session_id):
+    session_dir = UPLOAD_DIR / session_id
+    files = [f["text"] for f in get_files(session_id)]
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as tmp:
+        tmp.writelines("\n".join(files))
+    tmp_path = tmp.name
+
+    watcher = ProgressWatcher(session_id)
     try:
-        model = fasttext.train_unsupervised(input_path, model="skipgram")
-        model.save_model(model_path)
-        emit(jobStatus="running", progress=1.0, progressMessage="closing embedding", payload="embedding done")
+        emit(session_id=session_id, progress=0.9, progress_message="Caching Model..")
+        model = fasttext.train_unsupervised(tmp_path, model="skipgram")
+        model.save_model(
+            str((session_dir / "model.bin").resolve()),
+        )
     except Exception as e:
-        emit(jobStatus="error", progress=0.0, payload=str(e))
+        emit(session_id=session_id, errored="error", error_message=str(e))
         raise
     finally:
         watcher.close()
 
 
 if __name__ == "__main__":
-    train_worker(sys.argv[1], sys.argv[2])
+    train_worker(sys.argv[1])

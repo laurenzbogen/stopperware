@@ -1,100 +1,162 @@
 import { defineStore } from "pinia"
-import SuperJSON from 'superjson'
 import { computed, onMounted, ref, toRaw, watch } from 'vue'
-import { fetchApiJson, apiStatusBadgeType, ApiError } from "@/helpers"
+import { fetchApiJson, apiStatusBadgeType, delay } from "@/helpers"
 import Dependency from "./Dependency"
 import { useStatus } from "./useStatus"
-
-const filterScatter = (data, filterWordSet) => {
-    return {
-        ...data,
-        positions: data.positions.filter(w => !filterWordSet.has(w.word)).slice(0, 500)
-    }
-}
-
-const defaultFilterFunction = (data, filterWordSet) => {
-    return data.filter(w => !filterWordSet.has(w.word))
-}
-
-export const REQUEST_DEPENDENCIES = {
-    session: { name: 'session', sync: true, hasData: false },
-    wordcount: { name: 'wordcount', sync: true, hasData: true, filterData: defaultFilterFunction },
-    embedding: { name: 'embedding', sync: true },
-    embeddingScatter: { name: 'embeddingScatter', sync: true, hasData: true, filterData: defaultFilterFunction },
-    tfidf: { name: 'tfidf', sync: false, hasData: true, filterData: defaultFilterFunction },
-}
-
-const R_D = REQUEST_DEPENDENCIES
-export const stageTypeDependencies = {
-    'EmbeddingScatter': [R_D.embeddingScatter],
-    'WordCloud': [R_D.session, R_D.wordcount],
-    'FuzzySearch': [R_D.session, R_D.wordcount],
-    'ImportStopwords': [R_D.session, R_D.wordcount],
-    'SimilarWords': [R_D.embedding],
-    'TfidfScatter': [R_D.wordcount, R_D.tfidf],
-}
-
-export const REQUEST_STATUS = {
-    UNAVAILABLE: 'UNAVAILABLE',
-    INPROGRESS: 'INPROGRESS',
-    AVAILABLE: 'AVAILABLE',
-    ERRORED: 'ERRORED',
-}
-
-function dependenciesFor(type) {
-    return stageTypeDependencies[type] ?? []
-}
-
 
 
 export const useDependencyStore = defineStore('stopperwareDependencyData', () => {
     const requestDependencies = ref(Object.fromEntries(
         Object.keys(REQUEST_DEPENDENCIES).map(key => [key, new Dependency(key)])
     ))
+
     onMounted(async () => {
-        if (Object.values(requestDependencies.value).every(v => v.requestStatus === REQUEST_STATUS['AVAILABLE'])) {
+        try {
+            const {session} = await fetchApiJson('session')
+            if (session === "STALE_SESSION") {
+                useStatus().setStatus('Session Files not available on server anymore, please reupload Corpus', 'warning')
+            }
+        } catch (err) {
+            //TODO
             return
         }
+        
+        getStatus()
+    })
 
+
+    async function getStatus() {
         let statusResult
         try {
             statusResult = await fetchApiJson('status')
         } catch (err) {
-            const badgeType = err instanceof ApiError ? apiStatusBadgeType(err.status) : 'error'
-            useStatus().setStatus(err.detail ?? err.message ?? String(err), badgeType)
-            return
-        }
-
-        const { sessionId, jobStatus } = statusResult ?? {}
-        if (!sessionId) {
-            console.log('no session attached')
             //TODO
             return
         }
 
-        if (jobStatus === 'blocked') {
-            useStatus().setStatus('Another session is currently using the server. Try again later.', 'warning')
-            return
+        switch (statusResult.status) {
+            case 'NO_SESSION_ID':
+                setTimeout(() => {
+                    useStatus().setStatus('Drop Corpus File on the Canvas to get started', 'success')
+                }, 3500)
+                break
+            case 'SERVER_IDLE':
+                ensureMainDependencies()
+                break
+            case 'JOB_ATTACHABLE':
+                break
+            case 'JOB_BLOCKING':
+                useStatus().setStatus('Another session blocking the server, please try again later', 'error')
+                break
         }
+    }
 
-        requestDependencies.value['session'].requestStatus = REQUEST_STATUS['AVAILABLE']
+    function ensureMainDependencies() {
+        console.log('maindeps')
+        const mainDeps = ['wordcount', 'embedding', 'embeddingScatter']
+        fetchDependencies(mainDeps)
+    }
 
-        if (jobStatus === 'idle' || jobStatus === 'running') {
-            await calculateDependencies()
-        }
-    })
+    function ensureDependencies(type) {
+        const deps = dependenciesFor(type)
 
-    async function calculateDependencies() {
-        await requestDependencies.value['wordcount'].fetch()
-        await requestDependencies.value['embedding'].fetch()
-        await requestDependencies.value['embeddingScatter'].fetch()
+        const syncReady = deps
+            .filter(d => d.sync)
+            .every(d => requestDependencies.value[d.name].requestStatus === 'AVAILABLE')
+
+        if (!syncReady) return
+
+        let fetchDeps =  deps.filter(d => !d.sync && requestDependencies.value[d.name].requestStatus === 'UNAVAILABLE').map(d => d.name)
+        fetchDependencies(fetchDeps)
     }
 
     function allDependenciesReady(type) {
         return dependenciesFor(type).every(
-            d => requestDependencies.value[d.name]?.requestStatus === REQUEST_STATUS.AVAILABLE
+            d => requestDependencies.value[d.name]?.requestStatus === 'AVAILABLE'
         )
     }
+
+    function resetDeps() {
+        Object.values(requestDependencies.value).forEach(d => d.reset())
+
+    } 
+
+    async function fetchDependencies(dep_names) {
+        for (let d of dep_names) {
+            try {
+                await requestDependencies.value[d].tryFetch()
+            } catch (e) {
+                requestDependencies.value[d.name].requestStatus = 'ERRORED'
+                useStatus().setStatus(e, 'error')
+                break
+            }
+        }
+    }
+
+
+    function getMainDependencies() {
+        return Object.values(REQUEST_DEPENDENCIES).filter(d => d.sync).map(d => requestDependencies.value[d.name])
+    }
+
+    async function getIsActiveSession() {
+        let statusResult
+        try {
+            statusResult = await fetchApiJson('session')
+        } catch (err) {
+            useStatus().setStatus('Error Fetching Session status', 'error')
+            return
+        }
+        return statusResult.session === "ACTIVE_SESSION"
+    }
+
+
+    async function uploadCorpus(files) {
+        let statusResult
+        try {
+            statusResult = await fetchApiJson('status')
+        } catch (err) {
+            useStatus().setStatus('Error when fetching Server status before Corpus upload', 'error')
+            return
+        }
+
+        switch (statusResult.status) {
+            case 'SERVER_IDLE':
+                break
+            case 'NO_SESSION_ID':
+                break
+            case 'JOB_ATTACHABLE':
+                useStatus().setStatus('Aborting running calculation of this session', 'warning')
+                try {
+                    await fetchApiJson('cancelCalculation')
+                } catch (err) {
+                    useStatus().setStatus('Error trying to cancel calculation', 'error')
+                    return
+                }
+                break
+            case 'JOB_BLOCKING':
+                useStatus().setStatus('Another session blocking the server, please try again later', 'error')
+                return
+            default:
+                throw new Error('Unexpected Status answer, while trying to acces server status for uploading new Corpus')
+        }
+
+        const formData = new FormData()
+        for (const file of files) {
+            formData.append("files", file)
+        }
+
+        let p
+        try {
+            p = await fetchApiJson('uploadCorpus', { method: 'POST', body: formData })
+        } catch (err) {
+            useStatus().setStatus('Unexpected Error when uploading Corpus: ' + err, 'error')
+            return
+        }
+
+        resetDeps()
+        ensureMainDependencies()
+    }
+
 
     function getFilteredDependencyData(type, filterWordSet) {
         return dependenciesFor(type).filter(d => d.hasData).reduce((acc, d) => {
@@ -103,94 +165,37 @@ export const useDependencyStore = defineStore('stopperwareDependencyData', () =>
             acc[d.name] = d.filterData(data, filterWordSet)
             return acc
         }, {})
-    }
-
-    function ensureDependencies(type) {
-        const deps = dependenciesFor(type)
-
-        const syncReady = deps
-            .filter(d => d.sync)
-            .every(d => requestDependencies.value[d.name].requestStatus === REQUEST_STATUS.AVAILABLE)
-
-        if (!syncReady) return
-
-        for (const d of deps) {
-            if (d.sync) continue
-            const dep = requestDependencies.value[d.name]
-            if (dep.requestStatus === REQUEST_STATUS.UNAVAILABLE) {
-                dep.fetch() // fire and forget; flips to INPROGRESS synchronously
-            }
-        }
-    }
-
-    async function cancelCalculation() {
-        try {
-            await fetchApiJson('cancelCalculation', { method: 'POST' })
-        } catch (err) {
-            // No session yet (fresh browser, nothing to cancel) - not an error worth surfacing.
-            if (err instanceof ApiError && err.status === 400) {
-                return
-            }
-            const badgeType = err instanceof ApiError ? apiStatusBadgeType(err.status) : 'error'
-            useStatus().setStatus(err.detail ?? err.message ?? String(err), badgeType)
-        }
-    }
-
-    async function uploadCorpus(files) {
-        await cancelCalculation()
-
-        const formData = new FormData()
-        for (const file of files) {
-            formData.append("files", file)
-        }
-
-        Array.from(Object.values(requestDependencies.value)).forEach(d => d.reset())
-
-        requestDependencies.value['session'].requestStatus = REQUEST_STATUS['INPROGRESS']
-        requestDependencies.value['session'].progress = 0.3
-
-        let p
-        try {
-            p = await fetchApiJson('uploadCorpus', { method: 'POST', body: formData })
-        } catch (err) {
-            requestDependencies.value['session'].requestStatus = REQUEST_STATUS['ERRORED']
-            requestDependencies.value['session'].errorMessage = err.detail ?? err.message ?? String(err)
-            const badgeType = err instanceof ApiError ? apiStatusBadgeType(err.status) : 'error'
-            useStatus().setStatus(requestDependencies.value['session'].errorMessage, badgeType)
-            return
-        }
-
-        if (p.status === "AVAILABLE") {
-            requestDependencies.value['session'].requestStatus = REQUEST_STATUS['AVAILABLE']
-        }
-
-        await calculateDependencies()
-    }
-
-    function getDynamicDependency(endpoint) {
-        return requestDependencies.value[endpoint]
 
     }
 
-    function setDynamicDependency(endpoint, value) {
-        requestDependencies.value[endpoint] = value
-    }
 
-    function getMainDependencies() {
-        return Object.values(REQUEST_DEPENDENCIES).filter(d => d.sync).map(d => requestDependencies.value[d.name])
-    }
-
-    return {
-        requestDependencies,
-        getMainDependencies,
-        uploadCorpus,
-        calculateDependencies,
-        getFilteredDependencyData,
-        allDependenciesReady,
-        ensureDependencies,
-        getDynamicDependency,
-        setDynamicDependency,
-    }
-
+    return { getMainDependencies, ensureDependencies, allDependenciesReady, getIsActiveSession, uploadCorpus, getFilteredDependencyData }
 })
+
+
+
+
+const defaultFilterFunction = (data, filterWordSet) => {
+    return data.filter(w => !filterWordSet.has(w.word))
+}
+export const REQUEST_DEPENDENCIES = {
+    wordcount: { name: 'wordcount', sync: true, hasData: true, filterData: defaultFilterFunction },
+    embedding: { name: 'embedding', sync: true, hasData: false },
+    embeddingScatter: { name: 'embeddingScatter', sync: true, hasData: true, filterData: defaultFilterFunction },
+    tfidfScatter: { name: 'tfidfScatter', sync: false, hasData: true, filterData: defaultFilterFunction },
+}
+
+const R_D = REQUEST_DEPENDENCIES
+export const stageTypeDependencies = {
+    'EmbeddingScatter': [R_D.embeddingScatter],
+    'WordCloud': [R_D.wordcount],
+    'FuzzySearch': [R_D.wordcount],
+    'ImportStopwords': [R_D.wordcount],
+    'SimilarWords': [R_D.embedding],
+    'TfidfScatter': [R_D.wordcount, R_D.tfidfScatter],
+}
+
+function dependenciesFor(type) {
+    return stageTypeDependencies[type] ?? []
+}
 

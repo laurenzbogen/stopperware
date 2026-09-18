@@ -15,7 +15,6 @@ import { useStatus } from './composables/useStatus'
 
 const { message, type, visible } = useStatus()
 
-// Tailwind's scanner needs full literal class names, so map instead of interpolate.
 const BADGE_CLASSES = {
     info: 'badge-info',
     success: 'badge-success',

@@ -2,58 +2,47 @@ import sys
 import json
 from time import sleep
 from pathlib import Path
-from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
+from sklearn.feature_extraction.text import CountVectorizer
 import pandas as pd
-import traceback
+from calc_helpers import emit, UPLOAD_DIR
 
 
-UPLOAD_DIR = Path("./tmp")
-
-def emit(**kwargs):
-    kwargs['type'] = 'wordcount'
-    sys.stdout.write(json.dumps(kwargs) + "\n")
-    sys.stdout.flush()
-
-def get_files(h):
-    session_dir = UPLOAD_DIR / h / "files"
+def get_files(session_id):
+    session_dir = UPLOAD_DIR / session_id / "files"
+    if not session_dir.exists():
+        emit(session_id=session_id, errored=True, error_message=f'Cant find any files while calculating wordcount')
     files = []
     for path in session_dir.iterdir():
-        if not path.is_file():
-            continue
         try:
             text = path.read_text(encoding="utf-8", errors="ignore")
-        except Exception:
-            continue
+        except:
+            emit(session_id=session_id, errored=True, error_message=f'Error reading file at {path}')
 
         files.append({"name": path.name, "text": text})
 
     return files
 
-def calc_worker(h):
-    try:
-        session_files = get_files(h)
 
+def calc_worker(session_id):
+    session_files = get_files(session_id)
+    try:
         files = [f["text"] for f in session_files]
         filenames = [f["name"] for f in session_files]
-        emit(jobStatus="running", progress=0.4)
+        emit(session_id=session_id, progress=0.4, progress_message='Fitting Count Vectorizer..')
 
         vectorizer = CountVectorizer(strip_accents="unicode")
         X = vectorizer.fit_transform(files)
 
-        emit(jobStatus="running", progress=0.7)
+        emit(session_id=session_id, progress=0.7, progress_message='Collecting in csv cache..')
 
         df = pd.DataFrame(
             X.toarray(), index=filenames, columns=vectorizer.get_feature_names_out()
         )
-        cached_path = Path(UPLOAD_DIR) / h / "wordcount.csv"
+        cached_path = Path(UPLOAD_DIR) / session_id / "wordcount.csv"
         df.to_csv(cached_path)
 
-        emit(jobStatus="running", progress=1.0, payload={
-            "csv_path": str(cached_path),
-        })
     except:
-        emit(jobStatus="error", payload=traceback.format_exc())
-
+        emit(session_id=session_id, errored=True, error_message='Error calculating word count')
 
 if __name__ == "__main__":
     calc_worker(sys.argv[1])

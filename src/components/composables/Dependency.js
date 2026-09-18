@@ -1,4 +1,4 @@
-import { fetchApiJson, apiStatusBadgeType, ApiError } from "@/helpers"
+import { fetchApiJson, apiStatusBadgeType, delay } from "@/helpers"
 import { useStatus } from "./useStatus"
 
 export const REQUEST_STATUS = {
@@ -25,7 +25,7 @@ export default class Dependency {
         return this.data
     }
 
-    async fetch() {
+    async tryFetch() {
         if (this.requestStatus === REQUEST_STATUS.INPROGRESS || this.requestStatus === REQUEST_STATUS.AVAILABLE) {
             return
         }
@@ -34,33 +34,34 @@ export default class Dependency {
         this.progress = 0
         this.errorMessage = ''
 
-        try {
-            while (true) {
-                const r = await fetchApiJson(this.name)
-
-                if (r.status === 'STARTING' || r.status === 'INPROGRESS') {
-                    if (r.progress) this.progress = r.progress
-                    if (r.progressMessage) this.progressMessage = r.progressMessage
-                    await delay(500)
-                    continue
-                }
-
-                if (r.status === 'AVAILABLE') {
-                    this.data = r.payload
-                    this.progress = 1
-                    this.requestStatus = REQUEST_STATUS.AVAILABLE
-                    return
-                }
-
-                throw new Error(r.message || `Unexpected status: ${r.status}`)
+        while (true) {
+            let r
+            try {
+                r = await fetchApiJson(`dependency/${this.name}`)
+            } catch (e) {
+                throw new Error(`Error calculating ${this.name}, Server Error Status: ${e}`)
             }
-        } catch (err) {
-            console.error(err)
-            this.requestStatus = REQUEST_STATUS.ERRORED
-            this.errorMessage = err.detail || err.message || String(err)
 
-            const badgeType = err instanceof ApiError ? apiStatusBadgeType(err.status) : 'error'
-            useStatus().setStatus(`${this.name}: ${this.errorMessage}`, badgeType)
+            if (r.status === 'JOB_RUNNING' ) {
+                if (r.progress) this.progress = r.progress
+                if (r.progressMessage) this.progressMessage = r.progressMessage
+                await delay(500)
+                continue
+            }
+
+            if (r.status === 'DEPENDENCY_AVAILABLE') {
+                this.data = r.data
+                this.requestStatus = REQUEST_STATUS.AVAILABLE
+                return
+            }
+
+            if (r.status === 'JOB_ERRORED') {
+                this.requestStatus = REQUEST_STATUS.ERRORED
+
+                throw new Error(`Error calculating ${this.name}: ${r.errorMessage}`)
+            }
+
+            throw new Error(`Error calculating ${this.name}, Unexpected status: ${r.status}`)
         }
     }
 
@@ -75,6 +76,3 @@ export default class Dependency {
 }
 
 
-function delay(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms))
-}

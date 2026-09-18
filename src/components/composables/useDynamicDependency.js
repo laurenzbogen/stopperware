@@ -22,7 +22,7 @@ export default function useDynamicDependency(endpoint) {
         }
 
         dependency.value = dep                // ref() proxies it -> mutations tracked
-        await dependency.value.fetch()        // call through the proxy, so `this` is reactive
+        await dependency.value.tryFetch()        // call through the proxy, so `this` is reactive
     }
 
     watch(endpoint, hydrate, { immediate: true })

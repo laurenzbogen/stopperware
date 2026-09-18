@@ -17,7 +17,7 @@ const { getPipelineExclude } = inject('injectPipelineState')
 
 const { id, dependencyData } = defineProps(["id", "dependencyData"])
 
-const scatterPositions = computed(() => dependencyData['tfidf'])
+const scatterPositions = computed(() => dependencyData['tfidfScatter'])
 
 const scatterStageProps = computed(() => ({
     id,

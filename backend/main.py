@@ -8,7 +8,7 @@ import tempfile
 import zipfile
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import List
 
 import fasttext
 import numpy as np
@@ -169,36 +169,6 @@ async def get_wordcount(response: Response, h: str = Depends(get_session_id)):
 
 @app.get("/tfidf")
 def tfidf(h: str = Depends(get_session_id)):
-    cached_path = Path(UPLOAD_DIR) / h / "wordcount.csv"
-    if not cached_path.exists():
-        raise HTTPException(status_code=400, detail=f"Wordcounts couldnt be loaded")
-    wordcounts = pd.read_csv(
-        cached_path,
-        index_col=0,
-        keep_default_na=False,
-        na_values=["", "NA", "NULL"],
-    )
-    col_sums = wordcounts.sum(axis=0)
-    wordcounts = wordcounts[col_sums[col_sums > 10].index]
-
-    relative_term_frequecy = wordcounts.div(wordcounts.sum(axis=1), axis=0)
-
-    number_of_documents = len(wordcounts)
-    number_of_documents_with_term = (wordcounts != 0).sum()
-
-    idf = (number_of_documents / (1 + number_of_documents_with_term)).apply(np.log) + 1
-    tf_idf = relative_term_frequecy.div(idf, axis=1)
-
-    svd = TruncatedSVD(n_components=2, random_state=42)
-
-    scaler = MinMaxScaler()
-    transformed = svd.fit_transform(tf_idf.T)
-    result = scaler.fit_transform(transformed)
-
-    r = pd.DataFrame(scaler.fit_transform(result), index=wordcounts.columns)
-    r = r.loc[tf_idf.std().sort_values(ascending=False).index]
-    r = r.reset_index()
-    r.columns = ["word", "x", "y"]
 
     return {"status": "AVAILABLE", "payload": r.iloc[:500].to_dict(orient="records")}
 

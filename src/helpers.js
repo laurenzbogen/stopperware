@@ -73,9 +73,22 @@ export function getInitData() {
 }
 
 
+export function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+
 // Custom (non-standard) HTTP status codes the backend uses for job-state
 // signaling, see backend/main.py and backend/job_state.py.
 export const API_STATUS_CODES = {
+    NOSESSIONID: 260,
+    SERVERISIDLE: 261,
+
+
+
+
+
+
     STARTING: 201,
     INPROGRESS: 210,
     BAD_REQUEST: 400,
@@ -101,7 +114,7 @@ export function apiStatusBadgeType(status) {
     }
 }
 
-export class ApiError extends Error {
+class ApiError extends Error {
     constructor(status, detail) {
         super(detail)
         this.name = 'ApiError'
@@ -111,17 +124,12 @@ export class ApiError extends Error {
 }
 
 export async function fetchApiJson(endpoint, options = {}) {
-    const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/${endpoint}`, {
-        credentials: 'include',
-        ...options,
-    })
+  const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/${endpoint}`, {
+    credentials: 'include',
+    ...options,
+  })
 
-    const body = await res.json().catch(() => null)
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
 
-    if (!res.ok) {
-        const detail = body?.detail ?? body?.error ?? `Request to ${endpoint} failed with status ${res.status}`
-        throw new ApiError(res.status, detail)
-    }
-
-    return body
+  return res.json()
 }
