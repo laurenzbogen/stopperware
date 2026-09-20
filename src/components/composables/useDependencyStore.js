@@ -23,11 +23,11 @@ export const useDependencyStore = defineStore('stopperwareDependencyData', () =>
             return
         }
         
-        getStatus()
+        initDependencyStore()
     })
 
 
-    async function getStatus() {
+    async function initDependencyStore() {
         let statusResult
         try {
             statusResult = await fetchApiJson('status')
@@ -54,7 +54,6 @@ export const useDependencyStore = defineStore('stopperwareDependencyData', () =>
     }
 
     function ensureMainDependencies() {
-        console.log('maindeps')
         const mainDeps = ['wordcount', 'embedding', 'embeddingScatter']
         fetchDependencies(mainDeps)
     }
@@ -88,7 +87,7 @@ export const useDependencyStore = defineStore('stopperwareDependencyData', () =>
             try {
                 await requestDependencies.value[d].tryFetch()
             } catch (e) {
-                requestDependencies.value[d.name].requestStatus = 'ERRORED'
+                requestDependencies.value[d].requestStatus = 'ERRORED'
                 useStatus().setStatus(e, 'error')
                 break
             }
@@ -171,6 +170,6 @@ export const useDependencyStore = defineStore('stopperwareDependencyData', () =>
     }
 
 
-    return { getMainDependencies, ensureDependencies, allDependenciesReady, getIsActiveSession, uploadCorpus, getFilteredDependencyData }
+    return { requestDependencies, getMainDependencies, ensureDependencies, allDependenciesReady, getIsActiveSession, uploadCorpus, getFilteredDependencyData }
 })
 

@@ -21,7 +21,6 @@ import { computed, inject, nextTick, onMounted, ref, useTemplateRef, watch } fro
 import * as d3 from 'd3'
 import Lasso from "./Lasso.vue";
 import useZoom from './composables/useZoom';
-import Quadtree from '@timohausmann/quadtree-js';
 import { useDataStore } from './composables/useDataStore';
 import { storeToRefs } from 'pinia';
 
@@ -179,7 +178,13 @@ function computeOcclusion() {
         width: initDimensions.width * k,
         height: initDimensions.height * k,
     }
-    const quad = new Quadtree(containerRect);
+    const quad = d3.quadtree()
+        .x(d => d.x)
+        .y(d => d.y)
+        .cover(containerRect.x, containerRect.y)
+        .cover(containerRect.x + containerRect.width, containerRect.y + containerRect.height)
+    let maxW = 0
+    let maxH = 0
 
     const exclude = getPipelineExclude()
 
@@ -202,16 +207,16 @@ function computeOcclusion() {
     for (const i in nodes) {
         const n = nodes[i]
         if (exclude.has(n.word)) continue
-        const elements = quad.retrieve(n)
+        const elements = retrieveOverlapping(quad, n, maxW, maxH)
 
         const ratios = elements.map(v => overlapRatio(n, v))
         const cumRatio = ratios.reduce((acc, x) => acc + x * OCCLUSION_FACTOR, 0)
 
         if (cumRatio < 1) {
             const { x, y, width, height } = n
-            quad.insert({
-                x, y, width, height
-            })
+            quad.add({ x, y, width, height })
+            if (width > maxW) maxW = width
+            if (height > maxH) maxH = height
         }
 
         occlusionRatios.value.set(n.word, Math.max(0, 1 - cumRatio))
@@ -249,7 +254,36 @@ watch(() => scatterPositions, () => {
     }
 }, { immediate: true, flush: 'post' })
 
+
+
+
 watch(stopwords, computeOcclusion)
+
+
+function retrieveOverlapping(quad, rect, maxW, maxH) {
+    const results = []
+    const qx1 = rect.x + rect.width
+    const qy1 = rect.y + rect.height
+    const px0 = rect.x - maxW
+    const py0 = rect.y - maxH
+
+    quad.visit((node, nx0, ny0, nx1, ny1) => {
+        if (!node.length) {
+            let leaf = node
+            do {
+                const d = leaf.data
+                if (d.x < qx1 && d.x + d.width > rect.x &&
+                    d.y < qy1 && d.y + d.height > rect.y) {
+                    results.push(d)
+                }
+            } while (leaf = leaf.next)
+        }
+        // prune quadrants that cannot hold a box touching the query rect
+        return nx0 > qx1 || ny0 > qy1 || nx1 < px0 || ny1 < py0
+    })
+
+    return results
+}
 
 </script>
 

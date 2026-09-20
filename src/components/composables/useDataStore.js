@@ -4,6 +4,24 @@ import { useRefHistory } from '@vueuse/core'
 import SuperJSON from 'superjson'
 import { EDITMODES, getInitializedPipeline, getInitializedStage, getInitData } from '@/helpers'
 
+
+export const PERSISTED_KEYS = [
+    'stages',
+    'editorData',
+    'selectionGroups',
+    'stagePipelines',
+    'stagesStateHistory',
+    'stagesStateNoHistory',
+    'stopwords',
+]
+
+export function serializeDataStore(store) {
+    const snapshot = {}
+    for (const key of PERSISTED_KEYS) snapshot[key] = store[key]
+    return SuperJSON.stringify(snapshot)
+}
+
+
 export const useDataStore = defineStore('stopperwareLocalData', () => {
     const init = getInitData()
 
@@ -203,6 +221,7 @@ export const useDataStore = defineStore('stopperwareLocalData', () => {
     }
 
 
+
     return {
         stagePipelines,
         stages,
@@ -232,6 +251,6 @@ export const useDataStore = defineStore('stopperwareLocalData', () => {
             serialize: SuperJSON.stringify,
             deserialize: SuperJSON.parse,
         },
-        pick: ['stages', 'editorData', 'selectionGroups', 'stagePipelines', 'stagesStateHistory', 'stagesStateNoHistory', 'stopwords'],
+        pick: PERSISTED_KEYS,
     }
 })

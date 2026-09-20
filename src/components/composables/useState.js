@@ -19,12 +19,8 @@ export function useState(id, config) {
     const pick = (ks, src = state) =>
         ks.reduce((acc, k) => ((acc[k] = src[k]), acc), {})
 
-    // true while we copy store -> state, so the outgoing watchers
-    // don't write the same value back (and push a bogus history entry)
-   // let applying = false
 
     const writeBack = (history) => (val) => {
-        //if (applying) return
         updateStageState(id, val, history)
     }
 
@@ -37,13 +33,9 @@ export function useState(id, config) {
 
     function applyFromStore(ks = keys) {
         const saved = getStageState(id) ?? {}
-        //applying = true
         ks.forEach(k => { if (k in saved) state[k] = saved[k] })
-        // watchers flush on 'pre', so release the guard after they've run
-        //return nextTick(() => { applying = false })
     }
 
-    // keep live fields in sync with the store for the component's lifetime
     if (liveKeys.length) {
         watch(
             () => pick(liveKeys, getStageState(id) ?? {}),

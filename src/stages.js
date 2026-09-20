@@ -35,7 +35,7 @@ export const stageTypeDependencies = {
     'WordCloud': [R_D.wordcount],
     'FuzzySearch': [R_D.wordcount],
     'ImportStopwords': [R_D.wordcount],
-    'SimilarWords': [R_D.embedding],
+    'SimilarWords': [R_D.embedding, R_D.embeddingScatter],
     'TfidfScatter': [R_D.wordcount, R_D.tfidfScatter],
 }
 

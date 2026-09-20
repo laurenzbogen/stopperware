@@ -1,6 +1,7 @@
 import json
 import asyncio
 import threading
+import traceback
 
 from fastapi import HTTPException
 
@@ -92,8 +93,8 @@ class JobState:
             try:
                 if self._process is None:
                     raise AssertionError('Got a process update line while no process was defined in job_state')
-                self._session_id = new_state["session_id"]
-                self._calculation_type = new_state["calculation_type"]
+                self._session_id = new_state.get("session_id", self._session_id)
+                self._calculation_type = new_state.get("calculation_type", self._calculation_type)
                 self._progress = new_state.get("progress", self._progress)
                 self._progress_message = new_state.get(
                     "progress_message", self._progress_message
@@ -105,7 +106,7 @@ class JobState:
             except:
                 self._errored = True
                 self._error_message = (
-                    "Error updating server state from subprocess pipe text"
+                    f"Error updating server state from subprocess pipe text, {traceback.format_exc()}"
                 )
 
     def reset(self, session_id):

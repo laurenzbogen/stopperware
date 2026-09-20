@@ -3,7 +3,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from calc_helpers import UPLOAD_DIR, emit
+from calc_helpers import emit, init, UPLOAD_DIR
 from sklearn.decomposition import TruncatedSVD
 from sklearn.preprocessing import MinMaxScaler
 
@@ -50,4 +50,5 @@ def calc(session_id):
 
 
 if __name__ == "__main__":
-    calc(sys.argv[1])
+    calc(init("tfidf_scatter"))
+

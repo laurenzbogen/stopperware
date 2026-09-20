@@ -1,37 +1,17 @@
 import { ref, computed, watch } from 'vue'
-import Dependency, { REQUEST_STATUS } from './Dependency'
-import { useDependencyStore } from './useDependencyStore'
+import { useFetch } from '@vueuse/core'
 
 export default function useDynamicDependency(endpoint) {
-    const { getDynamicDependency, setDynamicDependency } = useDependencyStore()
+    const url = computed(() => `${import.meta.env.VITE_API_BASE_URL}/dynamic/${endpoint.value}`)
+    const { execute, isFetching, error, data } = useFetch(
+        url,
+        { credentials: 'include' },
+        { immediate: false },
+    ).json()
 
-    const dependency = ref(new Dependency(endpoint.value))
+    watch(endpoint, (endpointVal) => {
+        if (endpointVal.length > 0) execute()
+    }, { immediate: true })
 
-    const data = computed(() =>
-        dependency.value.requestStatus === REQUEST_STATUS.AVAILABLE
-            ? dependency.value.data
-            : null
-    )
-
-    async function hydrate(name) {
-        if (name === '') return
-        let dep = getDynamicDependency(name)
-        if (!dep) {
-            dep = new Dependency(name)
-            setDynamicDependency(name, dep)   // name, not the ref
-        }
-
-        dependency.value = dep                // ref() proxies it -> mutations tracked
-        await dependency.value.tryFetch()        // call through the proxy, so `this` is reactive
-    }
-
-    watch(endpoint, hydrate, { immediate: true })
-
-    return {
-        data,
-        status: computed(() => dependency.value.requestStatus),
-        progress: computed(() => dependency.value.progress),
-        progressMessage: computed(() => dependency.value.progressMessage),
-        errorMessage: computed(() => dependency.value.errorMessage),
-    }
+    return { data, isFetching }
 }

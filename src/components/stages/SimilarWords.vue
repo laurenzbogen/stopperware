@@ -8,10 +8,10 @@
 
             <div class="flex-1 min-h-0 overflow-y-auto">
                 <div class="grid grid-cols-2 gap-x-8 gap-y-1 max-w-4xl mx-auto">
-                    <div v-for="[ratio, word] in data" :key="word"
+                    <div v-for="[ratio, word] in similarValue" :key="word"
                         class="group flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-black/5 transition-colors">
                         <p @contextmenu="(e) => { handleContextMenu(e, word) }"
-                            :class="`text-2xl truncate flex-1 cursor-context-menu ${getWordStyle(word)}`"
+                            :class="`text-2xl truncate flex-1 ${getWordStyle(word)}`"
                             :title="word">
                             {{ word }}
                         </p>
@@ -46,7 +46,7 @@
 </template>
 
 <script setup>
-import { computed, inject, ref } from 'vue';
+import { computed, inject, ref, watch } from 'vue';
 import { useState } from '../composables/useState';
 
 
@@ -59,14 +59,20 @@ const { stages } = storeToRefs(useDataStore())
 const { getWordStyle, handleContextMenu } = inject('injectPipelineState')
 const { id } = defineProps(['id', 'dependencyData'])
 
-
-const { similarKey } = useState(id, {
-    similarKey: { default: stages.value?.get(id)?.init?.similarKey ?? '', history: false, live: true }
+const { similarKey, similarValue } = useState(id, {
+    similarKey: { default: stages.value?.get(id)?.init?.similarKey ?? '', history: false, live: true },
+    similarValue: { default: [], history: false, live: true },
 })
 const active = computed(() => similarKey.value !== '')
+const endpoint = computed(() => active.value ? `similar/${similarKey.value}` : '')
 
-const endpoint = computed(() => active.value ? `embeddingSimilar/${similarKey.value}` : '')
-const { data } = useDynamicDependency(endpoint)
+const { data, isFetching } = useDynamicDependency(endpoint)
+
+watch(data, (val) => {
+    if (val.length > 0) {
+        similarValue.value = val
+    }
+})
 
 const draftKey = ref('')
 const submitKey = () => {

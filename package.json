@@ -10,7 +10,6 @@
   },
   "dependencies": {
     "@lucide/vue": "^1.35.0",
-    "@timohausmann/quadtree-js": "^1.2.6",
     "@vueuse/core": "^14.4.0",
     "@vueuse/integrations": "^14.4.0",
     "@zoompinch/vue": "^0.0.41",

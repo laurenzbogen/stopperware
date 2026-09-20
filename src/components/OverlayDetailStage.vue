@@ -6,9 +6,6 @@
             <div class="mt-1 mb-8 text-xs">
                 <p>{{ detailPipelineId }}</p>
 
-                <SmallButton @click="detailPipeline.exclude = new Set()">
-                    <FilterX />
-                </SmallButton>
             </div>
 
             <div class="my-8">
@@ -33,6 +30,9 @@
                 <SmallButton @click="setOperationPipelineExclude(new Set(selection), 'union', detailPipelineId)">
                     <Filter />
                 </SmallButton>
+                <SmallButton @click="detailPipeline.exclude = new Set()">
+                    <FilterX />
+                </SmallButton>
 
             </div>
         </div>
@@ -46,7 +46,7 @@
 
             <component :id="detailStageId" :is="detailComponent"></component>
 
-            <input type="text" v-model="fuzzySearchModel" placeholder="Fuzzy Search" class="input mt-8 rounded-sm" />
+            <!-- <input type="text" v-model="fuzzySearchModel" placeholder="Fuzzy Search" class="input mt-8 rounded-sm" /> -->
         </div>
 
 

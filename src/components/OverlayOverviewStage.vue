@@ -8,7 +8,8 @@
         <div class="flex flex-row gap-2 my-4 items-center">
             <FilePlusCorner class="size-10 rounded-sm p-2 hover:bg-base-200" @click="handleClickedNewSession" />
             <SaveAll v-show="!savefileLoading" class="size-10 rounded-sm p-2 hover:bg-base-200"
-                @click="downloadSavefile" />
+                :class="{ 'pointer-events-none': !canDownloadSavefile }"
+                :style="{ opacity: canDownloadSavefile ? 1 : 0.6 }" @click="downloadSavefile" />
             <span v-show="savefileLoading"
                 class="size-6 mx-2 text-neutral/50 loading loading-spinner loading-sm"></span>
             <Undo2 class="size-10 rounded-sm p-2 hover:bg-base-200" @click="undo()"
@@ -63,13 +64,12 @@
 </template>
 
 <script setup>
-import { ref, computed, inject, onMounted } from 'vue';
+import { ref, computed, inject, onMounted, toRaw } from 'vue';
 import ServerStateDisplay from "@/components/ServerStateDisplay.vue"
 import PipelineDiagram from "@/components/PipelineDiagram.vue";
 import { FileDown, FilePlusCorner, Redo2, SaveAll, Undo2, X } from "@lucide/vue";
-import SuperJSON from 'superjson';
 import { REQUEST_STATUS } from './composables/Dependency';
-import { useDataStore } from './composables/useDataStore';
+import { serializeDataStore, useDataStore } from './composables/useDataStore';
 import { storeToRefs } from 'pinia';
 import { useDependencyStore } from './composables/useDependencyStore';
 
@@ -83,7 +83,6 @@ const { undo, redo } = refHistoryFuncs
 const orderedPipelines = computed(() => [...stagePipelines.value.values()].sort((a, b) => a.position - b.position))
 
 const sizeReduction = computed(() => {
-    return 0
     const d = requestDependencies.value['wordcount']
     if (d.requestStatus !== REQUEST_STATUS.AVAILABLE) return null
     const wordcount = d.data
@@ -105,24 +104,42 @@ function downloadStopwords() {
     downloadBlob(blob, 'stopwords.txt')
 }
 
-const savefileLoading = ref(false)
-async function downloadSavefile() {
-    savefileLoading.value = true
-    const json = SuperJSON.stringify(localStorage.getItem('stopperwareLocalData'))
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/downloadSavefile`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: json,
-    })
-    if (!response.ok) {
-        throw new Error(`Download failed: ${response.status}`)
-    }
-    const blob = await response.blob()
-    const filename = getFilename(response)
 
-    downloadBlob(blob, filename)
-    savefileLoading.value = false
+import { useCookies } from '@vueuse/integrations/useCookies'
+
+const cookies = useCookies(['stopperware_session_id'])
+const sessionId = computed(() => cookies.get('stopperware_session_id', { doNotParse: true }) ?? null)
+const canDownloadSavefile = computed(() => !!sessionId.value && !savefileLoading.value)
+const savefileLoading = ref(false)
+const savefileError = ref(null)
+
+
+const savefileData = useStorage('stopperwareLocalData', '', localStorage, {
+    writeDefaults: false,
+    listenToStorageChanges: true,
+})
+
+async function downloadSavefile() {
+    if (!canDownloadSavefile.value) return
+
+    savefileLoading.value = true
+    savefileError.value = null
+    try {
+        const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/downloadSavefile`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(serializeDataStore(dataStore)),
+        })
+        if (!res.ok) throw new Error(`Savefile request failed: ${res.status} ${res.statusText}`)
+
+        downloadBlob(await res.blob(), `${sessionId.value}.zip`)
+    } catch (err) {
+        savefileError.value = err
+        useStatus().setStatus(`Failed to download savefile ${err}`, 'error')
+    } finally {
+        savefileLoading.value = false
+    }
 }
 
 function downloadBlob(blob, filename) {
@@ -134,21 +151,15 @@ function downloadBlob(blob, filename) {
     URL.revokeObjectURL(url)
 }
 
-function getFilename(response) {
-    const disposition = response.headers.get('Content-Disposition')
-    if (!disposition) return null
-    // matches filename="foo.zip" or filename*=UTF-8''foo.zip
-    const match = disposition.match(/filename\*?=(?:UTF-8''|")?([^";]+)/i)
-    return match ? decodeURIComponent(match[1].replace(/"$/, '')) : null
-}
-
 import { useConfirm } from '@/components/composables/useConfirm'
+import { useStorage } from '@vueuse/core';
+import { useStatus } from './composables/useStatus';
 async function handleClickedNewSession() {
     const { confirm } = useConfirm()
     const ok = await confirm('Are you sure you want to start a new session? Consider saving your old session')
     if (ok) {
         localStorage.clear()
-        document.cookie = "stopperware_session_id=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+        cookies.remove('stopperware_session_id', { path: '/' })
         location.reload()
     }
 }

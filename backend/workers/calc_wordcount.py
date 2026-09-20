@@ -4,7 +4,7 @@ from time import sleep
 from pathlib import Path
 from sklearn.feature_extraction.text import CountVectorizer
 import pandas as pd
-from calc_helpers import emit, UPLOAD_DIR
+from calc_helpers import emit, init, UPLOAD_DIR
 
 
 def get_files(session_id):
@@ -32,7 +32,7 @@ def calc_worker(session_id):
 
         vectorizer = CountVectorizer(
             strip_accents="unicode",
-            token_pattern=r"(?u)[^\W\d_]+['’]?",
+            # token_pattern=r"(?u)[^\W\d_]+['’]?",
         )
         X = vectorizer.fit_transform(files)
 
@@ -48,4 +48,4 @@ def calc_worker(session_id):
         emit(session_id=session_id, errored=True, error_message='Error calculating word count')
 
 if __name__ == "__main__":
-    calc_worker(sys.argv[1])
+    calc_worker(init("wordcount"))

@@ -15,7 +15,7 @@ import { useConfirm } from './composables/useConfirm';
 
 
 const { initializeDataStore } = useDataStore()
-const { uploadCorpus, getIsActiveSession } = useDependencyStore()
+const { uploadCorpus, getIsActiveSession, initDependencyStore } = useDependencyStore()
 const { setStatus } = useStatus()
 
 
@@ -39,22 +39,34 @@ async function onDrop(files) {
 async function handleCsvUpload(file) {
     const formData = new FormData()
     formData.append("file", file)
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/uploadSavefile`, {
-        method: "POST",
-        body: formData,
-        credentials: 'include'
-    });
+
+    let response
+    try {
+        response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/uploadSavefile`, {
+            method: "POST",
+            body: formData,
+            credentials: 'include'
+        })
+    } catch (e) {
+        useStatus.setStatus(`Could not reach the server: ${e.message}`, 'error')
+        return
+    }
 
     if (!response.ok) {
         const body = await response.json().catch(() => null)
         const detail = body?.detail ?? `Upload failed with status ${response.status}`
+        useStatus().setStatus(detail, 'error')
         return
     }
 
-    const newData = await response.text()
-    initializeDataStore(SuperJSON.parse(newData))
-
-    await calculateDependencies()
+    try {
+        const newData = await response.text()
+        initializeDataStore(SuperJSON.parse(newData))
+        location.reload()
+    } catch (e) {
+        useStatus.setStatus(`Upload succeeded but the response could not be processed: ${e.message}`, 'error')
+        return
+    }
 }
 
 async function handleTxtUpload(files) {

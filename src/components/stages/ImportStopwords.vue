@@ -1,8 +1,8 @@
 <template>
     <div class="relative h-[230px]">
-        <div v-bind="getRootProps()" :class="[
+        <div ref="dropzone" :class="[
             'absolute top-0 left-0 bottom-0 right-0 rounded-xl border-2 border-dashed p-4 transition-all duration-200',
-            isDragActive
+            isOverDropZone
                 ? 'bg-secondary/20 border-secondary scale-[1.01]'
                 : 'bg-base-200/40 border-base-300 hover:border-base-content/20'
         ]">
@@ -70,9 +70,11 @@ import { UploadCloud } from '@lucide/vue';
 import { X } from '@lucide/vue';
 
 import { hashString } from "@/helpers";
-import { computed, hydrate, inject, onMounted, ref, watch } from "vue";
-import { useDropzone } from "vue3-dropzone";
-const { getRootProps, isDragActive } = useDropzone({ onDrop });
+import { computed, inject, useTemplateRef, watch } from "vue";
+import { useDropZone } from '@vueuse/core'
+
+const dropzoneRef = useTemplateRef('dropzone')
+const { isOverDropZone } = useDropZone(dropzoneRef, { onDrop });
 
 import { useDataStore } from '@/components/composables/useDataStore';
 import { storeToRefs } from 'pinia';
@@ -98,7 +100,7 @@ const { file } = useState(id, {
 
 
 const { globalDropzoneEnabled } = inject('injectGlobalState')
-watch(isDragActive, (val, oldVal) => {
+watch(isOverDropZone, (val, oldVal) => {
     if (val === true && oldVal === false) {
         globalDropzoneEnabled.value = false
     }

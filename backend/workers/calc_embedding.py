@@ -7,6 +7,7 @@ import os
 from time import time
 import threading
 from pathlib import Path
+from calc_helpers import emit, init, UPLOAD_DIR
 
 
 UPLOAD_DIR = Path("./tmp")
@@ -26,7 +27,6 @@ def get_files(session_id):
             text = path.read_text(encoding="utf-8", errors="ignore")
         except:
             emit(
-                session_id=session_id,
                 errored=True,
                 error_message=f"Error reading file at {path}",
             )
@@ -57,10 +57,6 @@ def _parse_line(line):
     }
 
 
-def emit(**kwargs):
-    kwargs["calculation_type"] = "embedding"
-    sys.stdout.write(json.dumps(kwargs) + "\n")
-    sys.stdout.flush()
 
 
 class ProgressWatcher:
@@ -93,7 +89,6 @@ class ProgressWatcher:
                     if parsed and time() - last_time > 0.5:
                         last_time = time()
                         emit(
-                            session_id=self._session_id,
                             progress=parsed["progress"],
                             progress_message="Training Embedding..",
                         )
@@ -119,16 +114,16 @@ def train_worker(session_id):
     watcher = ProgressWatcher(session_id)
     try:
         model = fasttext.train_unsupervised(tmp_path, model="skipgram")
-        emit(session_id=session_id, progress=0.9, progress_message="Caching Model..")
+        emit(progress=0.9, progress_message="Caching Model..")
         model.save_model(
             str((session_dir / "model.bin").resolve()),
         )
     except Exception as e:
-        emit(session_id=session_id, errored="error", error_message=str(e))
+        emit(errored="error", error_message=str(e))
         raise
     finally:
         watcher.close()
 
 
 if __name__ == "__main__":
-    train_worker(sys.argv[1])
+    train_worker(init('embedding'))
