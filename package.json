@@ -1,6 +1,6 @@
 {
   "name": "stopwords",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,25 +10,21 @@
   },
   "dependencies": {
     "@lucide/vue": "^1.35.0",
+    "@timohausmann/quadtree-js": "^1.2.6",
     "@vueuse/core": "^14.4.0",
     "@vueuse/integrations": "^14.4.0",
     "@zoompinch/vue": "^0.0.41",
     "d3": "^7.9.0",
     "d3-cloud": "^1.2.9",
-    "dropzone": "^6.0.0-beta.2",
     "fuse.js": "^7.4.2",
     "pinia": "^4.0.3",
     "pinia-plugin-persistedstate": "^4.7.1",
     "superjson": "^2.2.6",
-    "universal-cookie": "^7.2.2",
     "uuid": "^14.0.0",
-    "uuidv4": "^6.2.13",
-    "vue": "^3.5.32",
-    "vue3-dropzone": "^2.2.1"
+    "vue": "^3.5.32"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.0",
-    "@timohausmann/quadtree-js": "^1.2.6",
     "@vitejs/plugin-vue": "^6.0.6",
     "daisyui": "^5.5.19",
     "tailwindcss": "^4.3.0",

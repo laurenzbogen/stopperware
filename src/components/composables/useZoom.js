@@ -11,9 +11,9 @@ export default function useZoom(id, container, scaledPositions) {
     const { zoomTransform } = useState(`zoom_${id}`, {
         zoomTransform: { default: null, history: false }
     })
+    const { editorData } = storeToRefs(dataStore)
 
     // ===
-    const { editorData } = storeToRefs(dataStore)
     const { zoomIsGesturing: globalZoomIsBlocking } = inject('injectGlobalState')
 
     const zoomedPositions = computed(() => scaledPositions.value?.map(d => {

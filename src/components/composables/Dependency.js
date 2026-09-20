@@ -36,7 +36,7 @@ export default class Dependency {
         while (true) {
             let r
             try {
-                r = await fetchApiJson(`dependency/${this.name}`)
+                r = await fetchApiJson(`dependency/${this.name}`, {method: 'POST'})
             } catch (e) {
                 throw new Error(`Error calculating ${this.name}, Server Error Status: ${e}`)
             }

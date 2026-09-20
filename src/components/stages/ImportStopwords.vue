@@ -76,17 +76,13 @@ const { getRootProps, isDragActive } = useDropzone({ onDrop });
 
 import { useDataStore } from '@/components/composables/useDataStore';
 import { storeToRefs } from 'pinia';
-import { useDependencyStore } from '../composables/useDependencyStore';
 import { useState } from '../composables/useState';
 
-const { id } = defineProps(["id", "stage"])
 
 // === DEPENDENCIES ===
-const dependencyStore = useDependencyStore()
-const { requestDependencies } = storeToRefs(dependencyStore)
 
-const corpusWords = computed(() => new Set(requestDependencies.value['wordcount'].data.map(w => w.word)))
-
+const { id, dependencyData } = defineProps(["id", "dependencyData"])
+const corpusWords = computed(() => new Set(dependencyData["wordcount"].map(w => w.word)))
 
 // === STATE ===
 

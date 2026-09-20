@@ -129,7 +129,7 @@ export const useDependencyStore = defineStore('stopperwareDependencyData', () =>
             case 'JOB_ATTACHABLE':
                 useStatus().setStatus('Aborting running calculation of this session', 'warning')
                 try {
-                    await fetchApiJson('cancelCalculation')
+                    await fetchApiJson('cancel')
                 } catch (err) {
                     useStatus().setStatus('Error trying to cancel calculation', 'error')
                     return

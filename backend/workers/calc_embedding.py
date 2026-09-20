@@ -118,8 +118,8 @@ def train_worker(session_id):
 
     watcher = ProgressWatcher(session_id)
     try:
-        emit(session_id=session_id, progress=0.9, progress_message="Caching Model..")
         model = fasttext.train_unsupervised(tmp_path, model="skipgram")
+        emit(session_id=session_id, progress=0.9, progress_message="Caching Model..")
         model.save_model(
             str((session_dir / "model.bin").resolve()),
         )

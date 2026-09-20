@@ -151,7 +151,7 @@ export const useDependencyStore = defineStore('stopperwareDependencyData', () =>
 
     async function cancelCalculation() {
         try {
-            await fetchApiJson('cancelCalculation', { method: 'POST' })
+            await fetchApiJson('cancel', { method: 'POST' })
         } catch (err) {
             // No session yet (fresh browser, nothing to cancel) - not an error worth surfacing.
             if (err instanceof ApiError && err.status === 400) {

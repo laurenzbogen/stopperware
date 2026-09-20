@@ -144,7 +144,6 @@ function getFilename(response) {
 
 import { useConfirm } from '@/components/composables/useConfirm'
 async function handleClickedNewSession() {
-
     const { confirm } = useConfirm()
     const ok = await confirm('Are you sure you want to start a new session? Consider saving your old session')
     if (ok) {

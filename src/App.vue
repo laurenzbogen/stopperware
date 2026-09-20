@@ -80,7 +80,7 @@ import Confirm from "./components/Confirm.vue";
 import Status from "./components/Status.vue";
 const dataStore = useDataStore()
 const { addPipeline, addStage, moveStage } = dataStore
-const { stagePipelines, stages, stopwords, editorData } = storeToRefs(dataStore)
+const { stagePipelines, stages, editorData } = storeToRefs(dataStore)
 
 const contextMenuOptions = ref({
     menuWords: [], x: 0, y: 0, show: false, pipelineId: null,

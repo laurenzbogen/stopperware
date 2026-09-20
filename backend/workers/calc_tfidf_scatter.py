@@ -32,13 +32,12 @@ def calc(session_id):
     number_of_documents_with_term = (wordcounts != 0).sum()
 
     idf = (number_of_documents / (1 + number_of_documents_with_term)).apply(np.log) + 1
-    tf_idf = relative_term_frequecy.div(idf, axis=1)
+    tf_idf = relative_term_frequecy.mul(idf, axis=1)
 
     svd = TruncatedSVD(n_components=2, random_state=42)
 
     scaler = MinMaxScaler()
-    transformed = svd.fit_transform(tf_idf.T)
-    result = scaler.fit_transform(transformed)
+    result = svd.fit_transform(tf_idf.T)
 
     r = pd.DataFrame(scaler.fit_transform(result), index=wordcounts.columns)
     r = r.loc[tf_idf.std().sort_values(ascending=False).index]

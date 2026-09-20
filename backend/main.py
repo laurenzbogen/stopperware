@@ -1,11 +1,10 @@
-import pandas as pd
 import hashlib
 import shutil
-from typing import List
-from job_state import JobState
 from pathlib import Path
+from typing import List
+
+import pandas as pd
 from fastapi import (
-    status,
     Cookie,
     Depends,
     FastAPI,
@@ -13,8 +12,10 @@ from fastapi import (
     HTTPException,
     Response,
     UploadFile,
+    status,
 )
 from fastapi.middleware.cors import CORSMiddleware
+from job_state import JobState
 
 UPLOAD_DIR = Path("./tmp")
 app = FastAPI(title="Stopword API")
@@ -76,7 +77,7 @@ def get_session(response: Response, session_id=Depends(get_session_id)):
     return {"session": "ACTIVE_SESSION"}
 
 
-@app.get("/dependency/{dependency}")
+@app.post("/dependency/{dependency}")
 async def dependency(dependency: str, session_id=Depends(get_session_id)):
     cached = return_if_cached(dependency, session_id)
     if cached is not None:
@@ -119,7 +120,7 @@ async def upload_files(
     return {"status": "AVAILABLE", "payload": h}
 
 
-@app.get("/cancelCalculation")
+@app.get("/cancel")
 def cancel_calculation(session_id=Depends(get_session_id)):
     if server_job.is_blocking_to_session(session_id):
         raise HTTPException(detail="Current Job is not owned by session")
