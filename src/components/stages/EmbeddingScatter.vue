@@ -33,7 +33,7 @@ const scatterStageProps = computed(() =>({
 
 
 const scatterRef = useTemplateRef('scatterRef')
-//TODO searchSelection teil von state? 
+
 const stage = computed(() => stages.value.get(id))
 watch(() => stage.value.searchSelection, (val) => {
     if (!val) return

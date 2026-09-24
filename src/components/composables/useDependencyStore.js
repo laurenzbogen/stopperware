@@ -139,7 +139,7 @@ export const useDependencyStore = defineStore('stopperwareDependencyData', () =>
                 useStatus().setStatus('Another session blocking the server, please try again later', 'error')
                 return
             default:
-                throw new Error('Unexpected Status answer, while trying to acces server status for uploading new Corpus')
+                throw new Error('Unexpected Status answer, while trying to access server status for uploading new Corpus')
         }
 
         const formData = new FormData()

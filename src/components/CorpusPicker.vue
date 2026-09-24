@@ -16,8 +16,6 @@ import { useConfirm } from './composables/useConfirm';
 
 const { initializeDataStore } = useDataStore()
 const { uploadCorpus, getIsActiveSession, initDependencyStore } = useDependencyStore()
-const { setStatus } = useStatus()
-
 
 const { enabled } = defineProps(['enabled'])
 
@@ -48,7 +46,7 @@ async function handleCsvUpload(file) {
             credentials: 'include'
         })
     } catch (e) {
-        useStatus.setStatus(`Could not reach the server: ${e.message}`, 'error')
+        useStatus().setStatus(`Could not reach the server: ${e.message}`, 'error')
         return
     }
 
@@ -64,7 +62,7 @@ async function handleCsvUpload(file) {
         initializeDataStore(SuperJSON.parse(newData))
         location.reload()
     } catch (e) {
-        useStatus.setStatus(`Upload succeeded but the response could not be processed: ${e.message}`, 'error')
+        useStatus().setStatus(`Upload succeeded but the response could not be processed: ${e.message}`, 'error')
         return
     }
 }
@@ -74,7 +72,7 @@ async function handleTxtUpload(files) {
         return await uploadCorpus(files)
 
     const { confirm } = useConfirm()
-    const ok = await confirm('This will replace the currently loaded session are you sure?')
+    const ok = await confirm('This will replace the currently loaded session, are you sure?')
     if (ok) {
         await uploadCorpus(files)
     }

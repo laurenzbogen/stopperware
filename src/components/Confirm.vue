@@ -21,8 +21,4 @@ import { onMounted } from 'vue';
 
 const { isOpen, message, _accept, _cancel } = useConfirm()
 
-onMounted(() => {
-    document.addEventListener('click', () => { console.log('unmount') })
-})
-
 </script>

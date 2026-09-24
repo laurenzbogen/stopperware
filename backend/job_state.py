@@ -72,7 +72,6 @@ class JobState:
         try:
             while True:
                 line = await process.stdout.readline()
-                print(line)
                 if not line:
                     break
                 self.update_from_line(line)
@@ -131,7 +130,3 @@ class JobState:
             "errored": self._errored,
             "errorMessage": self._error_message,
         }
-
-    def test_function(self):
-        with self._lock:
-            self._session_id = "sessionid123"

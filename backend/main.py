@@ -61,7 +61,7 @@ def get_status(session_id=Depends(get_session_id)):
     if server_job.is_blocking_to_session(session_id):
         return {
             "status": "JOB_BLOCKING",
-            "message": "Running ob belongs to different session",
+            "message": "Running job belongs to different session",
         }
 
     if session_id is None:
@@ -141,7 +141,7 @@ def cancel_calculation(session_id=Depends(get_session_id)):
     server_job.try_cancel_process()
     return {
         "status": "JOB_CANCELLED",
-        "message": "Cancelled job succesfully",
+        "message": "Cancelled job successfully",
     }
 
 @app.get("/dynamic/similar/{word}")

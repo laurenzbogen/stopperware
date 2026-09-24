@@ -10,16 +10,13 @@ from pathlib import Path
 from calc_helpers import emit, init, UPLOAD_DIR
 
 
-UPLOAD_DIR = Path("./tmp")
-
-
 def get_files(session_id):
     session_dir = UPLOAD_DIR / session_id / "files"
     if not session_dir.exists():
         emit(
             session_id=session_id,
             errored=True,
-            error_message=f"Cant find any files while calculating wordcount",
+            error_message=f"Cant find any files while calculating embedding",
         )
     files = []
     for path in session_dir.iterdir():
@@ -119,7 +116,7 @@ def train_worker(session_id):
             str((session_dir / "model.bin").resolve()),
         )
     except Exception as e:
-        emit(errored="error", error_message=str(e))
+        emit(errored=True, error_message=str(e))
         raise
     finally:
         watcher.close()
