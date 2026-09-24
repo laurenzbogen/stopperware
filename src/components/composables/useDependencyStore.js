@@ -46,6 +46,7 @@ export const useDependencyStore = defineStore('stopperwareDependencyData', () =>
                 ensureMainDependencies()
                 break
             case 'JOB_ATTACHABLE':
+                ensureMainDependencies()
                 break
             case 'JOB_BLOCKING':
                 useStatus().setStatus('Another session blocking the server, please try again later', 'error')

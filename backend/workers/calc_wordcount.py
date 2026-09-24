@@ -41,6 +41,8 @@ def calc_worker(session_id):
         df = pd.DataFrame(
             X.toarray(), index=filenames, columns=vectorizer.get_feature_names_out()
         )
+
+
         cached_path = Path(UPLOAD_DIR) / session_id / "wordcount.csv"
         df.to_csv(cached_path)
 

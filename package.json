@@ -19,6 +19,7 @@
     "pinia": "^4.0.3",
     "pinia-plugin-persistedstate": "^4.7.1",
     "superjson": "^2.2.6",
+    "universal-cookie": "^8.1.2",
     "uuid": "^14.0.0",
     "vue": "^3.5.32"
   },

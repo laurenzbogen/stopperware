@@ -1,13 +1,11 @@
-import json
-import sys
 from pathlib import Path
 
 from calc_helpers import emit, init, UPLOAD_DIR
 import fasttext
 import numpy as np
 import pandas as pd
-from sklearn.decomposition import TruncatedSVD
-from sklearn.preprocessing import MinMaxScaler
+import umap
+from sklearn.preprocessing import StandardScaler
 
 
 def calc_worker(session_id: str):
@@ -36,15 +34,16 @@ def calc_worker(session_id: str):
     vecs = words["word"].apply(lambda x: model.get_word_vector(x)).values
     vecs = np.stack(vecs, axis=0)
     #
+    scaled_vecs = StandardScaler().fit_transform(vecs)
+
     emit(progress=0.7, progress_message="Reducing Dimension with UMAP..")
 
+    n_vecs = vecs.shape[0]
+    reducer = umap.UMAP(n_neighbors=int(np.sqrt(n_vecs)), min_dist=0.1, metric="cosine", random_state=42)
+    embedding = reducer.fit_transform(scaled_vecs)
 
-    svd = TruncatedSVD(n_components=2, random_state=42)
 
-    scaler = MinMaxScaler()
-    result = svd.fit_transform(vecs)
-
-    r = pd.DataFrame(scaler.fit_transform(result), index = words["word"])
+    r = pd.DataFrame(embedding, index = words["word"])
     r = r.reset_index()
     r.columns = ["word", "x", "y"]
 

@@ -1,4 +1,3 @@
-import sys
 from pathlib import Path
 
 import numpy as np
@@ -6,6 +5,7 @@ import pandas as pd
 from calc_helpers import emit, init, UPLOAD_DIR
 from sklearn.decomposition import TruncatedSVD
 from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import StandardScaler
 
 
 def calc(session_id):
@@ -35,11 +35,11 @@ def calc(session_id):
     tf_idf = relative_term_frequecy.mul(idf, axis=1)
 
     svd = TruncatedSVD(n_components=2, random_state=42)
-
-    scaler = MinMaxScaler()
     result = svd.fit_transform(tf_idf.T)
 
-    r = pd.DataFrame(scaler.fit_transform(result), index=wordcounts.columns)
+
+
+    r = pd.DataFrame(result, index=wordcounts.columns)
     r = r.loc[tf_idf.std().sort_values(ascending=False).index]
     r = r.reset_index()
     r.columns = ["word", "x", "y"]
