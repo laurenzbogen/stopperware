@@ -1,8 +1,0 @@
-fastapi
-uvicorn[standard]
-python-multipart
-fasttext_wheel
-numpy
-pandas
-scikit-learn
-umap-learn

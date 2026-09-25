@@ -1,20 +1,17 @@
-import re
 import hashlib
-import shutil
-from pathlib import Path
-from typing import List
-import fasttext
 import json
 import os
+import re
 import shutil
 import tempfile
 import zipfile
+from pathlib import Path
+from typing import List
 
+import fasttext
 import pandas as pd
-from fastapi import Body
-from fastapi.background import BackgroundTasks
-from fastapi.responses import FileResponse
 from fastapi import (
+    Body,
     Cookie,
     Depends,
     FastAPI,
@@ -24,7 +21,9 @@ from fastapi import (
     UploadFile,
     status,
 )
+from fastapi.background import BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from job_state import JobState
 
 UPLOAD_DIR = Path("./tmp")

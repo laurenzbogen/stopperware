@@ -4,8 +4,6 @@ import numpy as np
 import pandas as pd
 from calc_helpers import emit, init, UPLOAD_DIR
 from sklearn.decomposition import TruncatedSVD
-from sklearn.preprocessing import MinMaxScaler
-from sklearn.preprocessing import StandardScaler
 
 
 def calc(session_id):
@@ -17,6 +15,8 @@ def calc(session_id):
             errored=True,
             error_message="Couldnt find cached wordcounts",
         )
+        return
+
     wordcounts = pd.read_csv(
         wc_path,
         index_col=0,

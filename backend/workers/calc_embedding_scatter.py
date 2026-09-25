@@ -33,7 +33,6 @@ def calc_worker(session_id: str):
     emit(progress=0.5, progress_message="Fitting Model..")
     vecs = words["word"].apply(lambda x: model.get_word_vector(x)).values
     vecs = np.stack(vecs, axis=0)
-    #
     scaled_vecs = StandardScaler().fit_transform(vecs)
 
     emit(progress=0.7, progress_message="Reducing Dimension with UMAP..")
@@ -47,15 +46,6 @@ def calc_worker(session_id: str):
     r = r.reset_index()
     r.columns = ["word", "x", "y"]
 
-    # fit = UMAP(
-    #     n_neighbors=50, min_dist=0.1, n_components=2, metric="cosine", random_state=42
-    # )
-    # u = fit.fit_transform(vecs)
-
-    # words["x"] = u[:, 0]
-    # words["y"] = u[:, 1]
-    #
-    # words = words.drop(columns='count')     
 
     emit(progress=0.9, progress_message="Saving to csv..")
     scatter_path = Path(UPLOAD_DIR) / session_id / "embedding_scatter.csv"

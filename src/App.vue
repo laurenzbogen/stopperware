@@ -25,9 +25,6 @@
                         <button class="w-full h-full" @click="addPipeline()">
                             <Plus class="m-auto" />
                         </button>
-                        <!-- <SmallButton > -->
-                        <!--     <Plus class="w-6 h-6 relative z-50" /> -->
-                        <!-- </SmallButton> -->
                     </div>
 
                 </div>
@@ -68,7 +65,7 @@ import ContextMenu from './components/ContextMenu.vue';
 import { Plus } from "@lucide/vue";
 import { EDITMODES, getInitializedPipeline } from "./helpers";
 import OverlayToolbelt from "./components/OverlayToolbelt.vue";
-import OverlayDetailStage from "./components/OverlayDetailStage.vue"; import SmallButton from "./components/design/SmallButton.vue";
+import OverlayDetailStage from "./components/OverlayDetailStage.vue";
 import OverlayOverviewStage from "./components/OverlayOverviewStage.vue";
 import { useKeyStore } from "@/components/composables/useKeyStore";
 
